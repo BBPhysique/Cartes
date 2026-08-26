@@ -4,13 +4,14 @@
 
 import { state, getCurrentCard } from '../state.js';
 import { MAX_HISTORY, FAST_NAV_THRESHOLD, FAST_NAV_WINDOW_MS } from '../config.js';
-import { shuffleArray, asPositiveInt, nowMs } from '../utils/helpers.js';
+import { shuffleArray, asPositiveInt, nowMs, qs } from '../utils/helpers.js';
 import { loadFavourites, saveHistory, clearHistory, loadHistory } from '../core/storage.js';
 import {
   showCurrent,
   updateNavButtons,
   updateShuffleUI,
   updateFavouritesUI,
+  hideSkeleton,
 } from '../ui/updates.js';
 
 // ==================== Fast Navigation ====================
@@ -301,6 +302,7 @@ export function prevCard(options = {}) {
 // ==================== Toggle Functions ====================
 
 export function toggleShuffle() {
+  if (state.isTransitioning) return;
   if (state.showFavouritesOnly && !state.shuffle) {
     return;
   }
@@ -370,8 +372,6 @@ export async function toggleFavouritesOnly() {
   updateShuffleUI();
 
   if (!state.deck.length) {
-    const { qs } = await import('../utils/helpers.js');
-    const { hideSkeleton } = await import('../ui/updates.js');
     qs('#counter').textContent = 'Aucun favori disponible.';
     hideSkeleton();
     updateNavButtons();

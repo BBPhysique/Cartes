@@ -24,9 +24,7 @@ export function trackUmamiEvent(name, data) {
   if (state.chapter !== null && state.chapter !== undefined) {
     context.chapter = state.chapter;
   }
-  const payload = Object.keys(context).length
-    ? (data ? { ...context, ...data } : context)
-    : data;
+  const payload = Object.keys(context).length ? (data ? { ...context, ...data } : context) : data;
   if (window.umami && typeof window.umami.track === 'function') {
     if (payload) {
       window.umami.track(name, payload);

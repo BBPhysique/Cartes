@@ -1,73 +1,40 @@
 # Cartes
 
-[capecl.fr/cartes](https://capecl.fr/cartes)
+Flashcards CapECL : [capecl.fr/cartes](https://capecl.fr/cartes) · [miroir GitHub](https://bbphysique.github.io/Cartes/)
 
-[BBPhysique.github.io/Cartes](https://bbphysique.github.io/Cartes/)
+## Installation
 
-Flashcards CapECL
+1. Installer Node.js 20.19 ou plus récent.
+2. Exécuter `npm ci`.
 
----
+Pour régénérer les cartes, installer aussi Python 3.11+ puis `pymupdf`, `pillow` et `numpy`.
 
-## Setup
+## Développement
 
-To run the site locally after cloning:
+- `npm run dev` : serveur Vite local sur `http://localhost:3000`.
+- `npm run build` : production dans `dist/`.
+- `npm run preview` : aperçu local du build.
+- `npm run lint` : contrôle ESLint de `src/`.
+- `npm run format:check` : contrôle Prettier de `src/`.
 
-1. Install Node.js 20+.
-2. Install dependencies:
-   - `npm ci`
+## Mettre à jour les cartes
 
-If you plan to regenerate flashcards locally, install Python 3.11+ and the script dependencies:
-- `pip install pymupdf pillow numpy`
+Méthode automatique : ajouter le PDF dans `flashcards/`, puis pousser sur `main`. GitHub Actions régénère et déploie les cartes.
 
-## Development
+Vérification locale recommandée :
 
-- `npm run dev` starts the Vite dev server with HMR (default: http://localhost:3000).
-- `npm run build` outputs the production build to `dist/`.
-- `npm run preview` serves the built output locally for a production-like check.
+1. Exécuter `python cartes.py` depuis la racine.
+2. Vérifier `flashcards/<nom-du-pdf>/` et son `manifest.json`.
+3. Exécuter `npm run build`, puis `npm run preview`.
+4. Valider et pousser les fichiers générés.
 
-## Updating flashcards
+## Déploiement
 
-Quick path (just push the PDF, GitHub Actions regenerates + deploys):
+Le workflow **Deploy Dist** construit `dist/` et le publie sur la branche `deploy`. Le fichier `public/.htaccess` est copié automatiquement par Vite.
 
-1. Drop the updated PDF into `flashcards/`.
-2. Commit and push to `main`.
+## Licences
 
-Recommended path (verify locally before pushing):
+- Code hors `flashcards/` : [licence MIT](./LICENSE).
+- Contenu de `flashcards/` : [GNU Free Documentation License 1.3](./LICENSE-FLASHCARDS).
 
-1. Drop the updated PDF into `flashcards/`.
-2. Run the generator from the repo root and pick the PDF:
-   - `python cartes.py`
-3. Review the generated assets in `flashcards/<pdf-name>/` (images + `manifest.json`) and commit.
-4. Run `npm run build` then `npm run preview` to verify the site locally.
-5. Push to `main`.
-
-## Code quality
-
-- `npm run lint` runs ESLint on `src/`.
-- `npm run format` and `npm run format:check` run Prettier on `src/`.
-
-## Deployment
-
-- Only the `dist/` folder is deployed to production.
-- `.htaccess` lives in `public/`, so Vite copies it into `dist/` during the build (important).
-- GitHub Actions includes a **Deploy Dist** workflow that builds on push to `main` and publishes `dist/` to the `deploy` branch.
-- Hosting is linked to the `deploy` branch via webhook, so updates go live automatically.
-
----
-
-## License
-
-This repository contains two distinct parts under different licenses:
-
-- **Code (everything except `flashcards/`):**  
-  Licensed under the [MIT License](./LICENSE).  
-  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-- **Flashcards (the contents of the `flashcards/` directory):**  
-  Licensed under the [GNU Free Documentation License v1.3](./LICENSE-FLASHCARDS).  
-  [![License: FDL 1.3](https://img.shields.io/badge/License-FDL%20v1.3-blue.svg)](https://www.gnu.org/licenses/fdl-1.3)
-
----
-
-Users and contributors must respect both licenses.  
-In particular, any redistribution or modification of the flashcards must comply with the terms of the GNU Free Documentation License.
+Toute redistribution ou modification des cartes doit respecter la GNU FDL 1.3.

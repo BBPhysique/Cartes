@@ -21,6 +21,7 @@ import {
   updateCounter,
   setModalVisibility,
 } from '../ui/updates.js';
+import { resetSwipeTransform } from '../ui/card-motion.js';
 
 /**
  * Reset revision progress to initial state
@@ -162,9 +163,7 @@ export async function showCurrentWithScaleIn() {
     return;
   }
 
-  // Import swipeGesture to reset transforms
-  const { swipeGesture } = await import('./swipe.js');
-  swipeGesture.resetCardTransform();
+  resetSwipeTransform(cardShell);
 
   cardShell.style.transition = 'none';
   cardShell.style.transform = '';
@@ -196,8 +195,7 @@ export async function swipeCard(direction, callback) {
 
   state.isTransitioning = true;
 
-  const { swipeGesture } = await import('./swipe.js');
-  swipeGesture.resetCardTransform();
+  resetSwipeTransform(cardShell);
   cardShell.style.transform = '';
 
   void cardShell.offsetWidth;
@@ -224,6 +222,7 @@ export async function swipeCard(direction, callback) {
  * Mark current card as OK (mastered)
  */
 export function markCardOK() {
+  if (state.isTransitioning) return;
   const currentCard = getCurrentCard();
   if (!currentCard) return;
 
@@ -244,6 +243,7 @@ export function markCardOK() {
  * Mark current card as not OK (needs review)
  */
 export function markCardPasOK() {
+  if (state.isTransitioning) return;
   const currentCard = getCurrentCard();
   if (!currentCard) return;
 
@@ -289,6 +289,7 @@ export function restartRevisionSession() {
  * Toggle revision mode on/off
  */
 export function toggleRevisionMode() {
+  if (state.isTransitioning) return;
   const previousCard = getCurrentCard();
   state.revisionMode = !state.revisionMode;
   localStorage.setItem('fc_revision_mode', JSON.stringify(state.revisionMode));

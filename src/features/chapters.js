@@ -19,10 +19,15 @@ import {
   getFormatsForBase,
 } from '../core/image-loader.js';
 import { getStoredCard, loadHistory, loadRevisionProgress } from '../core/storage.js';
-import { asPositiveInt } from '../utils/helpers.js';
+import { asPositiveInt, qs } from '../utils/helpers.js';
 import { rebuildDeck } from './navigation.js';
-import { showCurrent, showSkeleton, hideSkeleton } from '../ui/updates.js';
-import { updateNavButtons } from '../ui/updates.js';
+import {
+  showCurrent,
+  showSkeleton,
+  hideSkeleton,
+  updateNavButtons,
+  updateFavouritesCount,
+} from '../ui/updates.js';
 import { resetRevisionProgress } from './revision-mode.js';
 import { resetFastNavState, ensureShuffleQueue } from './navigation.js';
 
@@ -229,9 +234,18 @@ export async function ensureCardSizes(total) {
  * @param {number} n
  */
 export async function loadChapter(n) {
-  const { qs } = await import('../utils/helpers.js');
-  const { updateFavouritesCount } = await import('../ui/updates.js');
+  const chapterSelect = qs('#chapterSelect');
 
+  if (chapterSelect) chapterSelect.disabled = true;
+
+  try {
+    await loadChapterContent(n);
+  } finally {
+    if (chapterSelect) chapterSelect.disabled = false;
+  }
+}
+
+async function loadChapterContent(n) {
   showSkeleton();
   applyChapter(n);
   updateFavouritesCount();

@@ -3,7 +3,27 @@
  */
 
 import { state } from '../state.js';
-import { LAST_CARD_KEY_PREFIX, MAX_HISTORY } from '../config.js';
+import { LAST_CARD_KEY_PREFIX, LAST_CHAPTER_KEY, MAX_HISTORY } from '../config.js';
+
+// ==================== Chapitre sélectionné ====================
+
+export function getStoredChapter(chapters) {
+  try {
+    const chapter = Number.parseInt(localStorage.getItem(LAST_CHAPTER_KEY), 10);
+    return chapters.includes(chapter) ? chapter : null;
+  } catch {
+    return null;
+  }
+}
+
+export function storeSelectedChapter(chapter) {
+  if (!Number.isInteger(chapter) || chapter < 1) return;
+  try {
+    localStorage.setItem(LAST_CHAPTER_KEY, String(chapter));
+  } catch {
+    // L’application reste utilisable lorsque le stockage est indisponible.
+  }
+}
 
 // ==================== Favourites ====================
 
@@ -13,8 +33,20 @@ export function getFavouritesKey() {
 
 export function loadFavourites() {
   const key = getFavouritesKey();
-  const stored = localStorage.getItem(key);
-  return stored ? new Set(JSON.parse(stored)) : new Set();
+  try {
+    const stored = localStorage.getItem(key);
+    if (!stored) return new Set();
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((card) => Number.isInteger(card) && card > 0));
+  } catch {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Le stockage peut être indisponible selon les réglages du navigateur.
+    }
+    return new Set();
+  }
 }
 
 export function saveFavourites(favourites) {
@@ -99,7 +131,7 @@ export function loadRevisionProgress() {
       seen: new Set(data.seen || []),
       mastered: new Set(data.mastered || []),
     };
-  } catch (_) {
+  } catch {
     return null;
   }
 }

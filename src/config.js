@@ -15,6 +15,7 @@ export const FAST_NAV_THRESHOLD = 2;
 export const FAST_NAV_WINDOW_MS = 450;
 export const IMAGE_FORMATS = ['webp', 'png'];
 export const LAST_CARD_KEY_PREFIX = 'fc_last_card_';
+export const LAST_CHAPTER_KEY = 'fc_last_chapter';
 
 // Filter state cycles
 export const TIMER_STATES = ['all', 'green', 'yellow', 'orange'];

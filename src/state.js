@@ -1,6 +1,19 @@
 /**
- * Application state management
+ * Gestion de l’état de l’application.
  */
+
+function readStoredBoolean(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || 'false') === true;
+  } catch {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Le stockage peut être indisponible selon les réglages du navigateur.
+    }
+    return false;
+  }
+}
 
 /**
  * Global application state
@@ -13,7 +26,7 @@ export const state = {
   currentIndex: 0,
   unvisited: new Set(),
   flipped: false,
-  shuffle: JSON.parse(localStorage.getItem('fc_shuffle') || 'false'),
+  shuffle: readStoredBoolean('fc_shuffle'),
   showFavouritesOnly: false,
   chapter: null,
   basePath: '',
@@ -34,7 +47,7 @@ export const state = {
   lastCardBeforeFavourites: null,
   wasShuffleBeforeFavourites: false,
   // Revision mode state
-  revisionMode: JSON.parse(localStorage.getItem('fc_revision_mode') || 'false'),
+  revisionMode: readStoredBoolean('fc_revision_mode'),
   revisionIncorrect: new Set(),
   revisionSeen: new Set(),
   revisionRound: 1,

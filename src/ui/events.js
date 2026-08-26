@@ -301,6 +301,7 @@ export function initInfoTooltip() {
       tooltipVisible = false;
       helpTooltip.classList.add('hidden');
       helpTooltip.setAttribute('aria-hidden', 'true');
+      infoBtn.setAttribute('aria-expanded', 'false');
       if (repositionFrame !== null) {
         cancelAnimationFrame(repositionFrame);
         repositionFrame = null;
@@ -370,6 +371,7 @@ export function initInfoTooltip() {
       tooltipVisible = true;
       helpTooltip.classList.remove('hidden');
       helpTooltip.setAttribute('aria-hidden', 'false');
+      infoBtn.setAttribute('aria-expanded', 'true');
       scheduleTooltipReposition();
     };
 

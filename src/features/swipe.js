@@ -8,7 +8,8 @@ import { qs, wait } from '../utils/helpers.js';
 import { loadFrontImage, loadBackImage } from '../core/image-loader.js';
 import { saveRevisionProgress, saveHistory, storeCurrentCard } from '../core/storage.js';
 import { checkRoundComplete, handleRoundComplete } from './revision-mode.js';
-import { showCurrent, updateCounter, sizeStageForImage } from '../ui/updates.js';
+import { showCurrent, updateCounter, sizeStageForImage, resetCardFlip } from '../ui/updates.js';
+import { resetSwipeTransform } from '../ui/card-motion.js';
 
 export const swipeGesture = {
   // Configuration
@@ -324,14 +325,8 @@ export const swipeGesture = {
       const frontImg = qs('#frontImg');
       const backImg = qs('#backImg');
 
-      if (state.flipped) {
-        const card3d = qs('#card3d');
-        card3d.classList.add('no-anim');
-        card3d.classList.remove('flipped', 'flipping');
-        card3d.setAttribute('aria-pressed', 'false');
-        state.flipped = false;
-        void card3d.offsetHeight;
-        card3d.classList.remove('no-anim');
+      if (state.flipped || qs('#card3d')?.classList.contains('flipping')) {
+        resetCardFlip();
       }
 
       let front = { src: '', ok: false };
@@ -433,20 +428,6 @@ export const swipeGesture = {
   },
 
   resetCardTransform() {
-    if (this.cardShell) {
-      this.cardShell.style.transform = '';
-      this.cardShell.classList.remove(
-        'swiping',
-        'snap-back',
-        'swipe-exit',
-        'swipe-exit-left',
-        'swipe-exit-right'
-      );
-      this.cardShell.style.removeProperty('--swipe-start-x');
-      this.cardShell.style.removeProperty('--swipe-start-y');
-      this.cardShell.style.removeProperty('--swipe-start-rotation');
-    }
-    if (this.zoneOk) this.zoneOk.classList.remove('active');
-    if (this.zoneReview) this.zoneReview.classList.remove('active');
+    resetSwipeTransform(this.cardShell, this.zoneOk, this.zoneReview);
   },
 };

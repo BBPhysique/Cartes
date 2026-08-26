@@ -7,6 +7,7 @@ import './styles.css';
 import { state } from './state.js';
 import { qs } from './utils/helpers.js';
 import { discoverChapters, loadChapter } from './features/chapters.js';
+import { getStoredChapter, storeSelectedChapter } from './core/storage.js';
 import { swipeGesture } from './features/swipe.js';
 import { bindUI, checkWelcomeModal, initInfoTooltip, initTouchDetection } from './ui/events.js';
 import {
@@ -33,12 +34,13 @@ function buildChapterSelect(chapters) {
     opt.textContent = `Chapitre ${n}`;
     sel.appendChild(opt);
   });
-  const defaultChapter = chapters[chapters.length - 1];
-  const initial = defaultChapter;
+  const storedChapter = getStoredChapter(chapters);
+  const initial = storedChapter ?? (chapters.includes(1) ? 1 : chapters[0]);
   sel.value = String(initial);
   sel.addEventListener('change', async (e) => {
     const val = parseInt(e.target.value, 10);
     await loadChapter(val);
+    storeSelectedChapter(val);
   });
   return initial;
 }
@@ -79,6 +81,7 @@ async function init() {
 
   const initial = buildChapterSelect(chapters);
   await loadChapter(initial);
+  storeSelectedChapter(initial);
 
   // Check and show welcome modal if needed
   checkWelcomeModal();

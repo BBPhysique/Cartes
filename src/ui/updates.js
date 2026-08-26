@@ -69,17 +69,58 @@ export function sizeStageForImage(naturalW, naturalH) {
 
 // ==================== Card Display ====================
 
+let activeFlipCleanup = null;
+
+function clearFlipTransition() {
+  if (activeFlipCleanup) activeFlipCleanup();
+}
+
 export function setFlipped(on) {
+  if (state.flipped === on) return;
+
   state.flipped = on;
   trackUmamiEvent(UMAMI_EVENTS.cardFlip, {
     mode: state.revisionMode ? 'revision' : 'lecture',
     side: on ? 'back' : 'front',
   });
   const card3d = qs('#card3d');
+  const cardShell = qs('#cardShell');
+
+  clearFlipTransition();
   card3d.classList.add('flipping');
-  setTimeout(() => card3d.classList.remove('flipping'), 600);
+  cardShell.classList.add('is-flipping');
+
+  const cleanup = () => {
+    if (activeFlipCleanup !== cleanup) return;
+    activeFlipCleanup = null;
+    clearTimeout(fallbackTimer);
+    card3d.removeEventListener('transitionend', onTransitionEnd);
+    card3d.classList.remove('flipping');
+    cardShell.classList.remove('is-flipping');
+  };
+  const onTransitionEnd = (event) => {
+    if (event.target === card3d && event.propertyName === 'transform') cleanup();
+  };
+
+  activeFlipCleanup = cleanup;
+  card3d.addEventListener('transitionend', onTransitionEnd);
   card3d.classList.toggle('flipped', on);
   card3d.setAttribute('aria-pressed', String(on));
+  const fallbackTimer = setTimeout(cleanup, 700);
+}
+
+export function resetCardFlip() {
+  const card3d = qs('#card3d');
+  if (!card3d) return;
+
+  clearFlipTransition();
+  card3d.classList.add('no-anim');
+  card3d.classList.remove('flipped', 'flipping');
+  card3d.setAttribute('aria-pressed', 'false');
+  qs('#cardShell')?.classList.remove('is-flipping');
+  state.flipped = false;
+  void card3d.offsetHeight;
+  card3d.classList.remove('no-anim');
 }
 
 export async function showCurrent(direction = 'none', options = {}) {
@@ -99,6 +140,7 @@ export async function showCurrent(direction = 'none', options = {}) {
   const card3d = qs('#card3d');
   const frontImg = qs('#frontImg');
   const backImg = qs('#backImg');
+  const chapterSelect = qs('#chapterSelect');
 
   const isFirstLoad = !state.imagesLoaded.has(n);
   if (isFirstLoad) {
@@ -106,9 +148,11 @@ export async function showCurrent(direction = 'none', options = {}) {
   }
 
   state.isTransitioning = true;
+  if (chapterSelect) chapterSelect.disabled = true;
 
   const finishTransition = () => {
     state.isTransitioning = false;
+    if (chapterSelect) chapterSelect.disabled = false;
     updateNavButtons();
     if (n) {
       storeCurrentCard(n);
@@ -118,13 +162,8 @@ export async function showCurrent(direction = 'none', options = {}) {
   };
 
   const swapImages = async () => {
-    if (state.flipped) {
-      card3d.classList.add('no-anim');
-      card3d.classList.remove('flipped', 'flipping');
-      card3d.setAttribute('aria-pressed', 'false');
-      state.flipped = false;
-      void card3d.offsetHeight;
-      card3d.classList.remove('no-anim');
+    if (state.flipped || card3d.classList.contains('flipping')) {
+      resetCardFlip();
     }
 
     frontImg.classList.remove('loaded');
@@ -158,7 +197,7 @@ export async function showCurrent(direction = 'none', options = {}) {
           }),
         ]);
       }
-    } catch (_) {
+    } catch {
       await Promise.all([
         new Promise((resolve) => {
           if (frontImg.complete) resolve();
@@ -391,7 +430,7 @@ export function updateDifficultyUI() {
 // ==================== Filter Cycling ====================
 
 export function cycleTimer() {
-  if (state.revisionMode) return;
+  if (state.revisionMode || state.isTransitioning) return;
 
   const currentIndex = TIMER_STATES.indexOf(state.filterTimer);
   const nextIndex = (currentIndex + 1) % TIMER_STATES.length;
@@ -414,7 +453,7 @@ export function cycleTimer() {
 }
 
 export function cycleDifficulty() {
-  if (state.revisionMode) return;
+  if (state.revisionMode || state.isTransitioning) return;
 
   const currentIndex = DIFFICULTY_STATES.indexOf(state.filterDifficulty);
   const nextIndex = (currentIndex + 1) % DIFFICULTY_STATES.length;
