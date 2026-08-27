@@ -45,6 +45,7 @@ TIMER_SAMPLE_RADIUS = 12
 class ProcessingProfile:
     """Regroupe uniquement les compromis de sortie qui ont un sens pour l'utilisateur."""
 
+    label: str
     dpi: int
     webp_quality: int = 88
     alpha_quality: int = 90
@@ -54,19 +55,24 @@ class ProcessingProfile:
 
 PROFILES = {
     # Bon compromis poids/qualité pour le site : c'est le mode recommandé.
-    "web": ProcessingProfile(dpi=300),
+    "web": ProcessingProfile(
+        label="Web — recommandé, bon équilibre entre qualité et poids", dpi=300
+    ),
     # Même définition, mais sans aucune perte de compression.
-    "lossless": ProcessingProfile(dpi=300, alpha_quality=100, lossless=True),
+    "lossless": ProcessingProfile(
+        label="Sans perte — qualité maximale pour l'archivage",
+        dpi=300,
+        alpha_quality=100,
+        lossless=True,
+    ),
     # Rendu deux fois moins large et encodage plus rapide pour contrôler un PDF.
     "fast": ProcessingProfile(
-        dpi=150, webp_quality=82, alpha_quality=80, webp_method=3
+        label="Rapide — aperçu plus léger à générer",
+        dpi=150,
+        webp_quality=82,
+        alpha_quality=80,
+        webp_method=3,
     ),
-}
-
-PROFILE_LABELS = {
-    "web": "Web — recommandé, bon équilibre entre qualité et poids",
-    "lossless": "Sans perte — qualité maximale pour l'archivage",
-    "fast": "Rapide — aperçu plus léger à générer",
 }
 
 
@@ -101,73 +107,25 @@ def crop_to_one_px_margin(image: Image.Image) -> Image.Image:
         fail("La page semble vide : aucun contenu non blanc n'a été trouvé.")
 
     (top, left), (bottom, right) = coords.min(0), coords.max(0)
-    top = max(0, top - 1)
-    left = max(0, left - 1)
-    bottom_exclusive = min(image.height, bottom + 2)
-    right_exclusive = min(image.width, right + 2)
-    cropped = image.crop((left, top, right_exclusive, bottom_exclusive))
-
-    cropped_luminance = np.asarray(ImageOps.grayscale(cropped), dtype=np.uint8)
-
-    def frac_nonwhite_edge(edge_vals: np.ndarray) -> float:
-        return float((edge_vals < WHITE_THRESHOLD).sum()) / float(edge_vals.size)
-
-    top_bad = frac_nonwhite_edge(cropped_luminance[0, :])
-    bottom_bad = frac_nonwhite_edge(cropped_luminance[-1, :])
-    left_bad = frac_nonwhite_edge(cropped_luminance[:, 0])
-    right_bad = frac_nonwhite_edge(cropped_luminance[:, -1])
-
-    if max(top_bad, bottom_bad, left_bad, right_bad) > 0.01:
-        fail(
-            "Impossible d'obtenir une marge blanche uniforme d'environ 1 px "
-            f"(fractions non blanches : haut={top_bad:.3f}, bas={bottom_bad:.3f}, "
-            f"gauche={left_bad:.3f}, droite={right_bad:.3f}). "
-            "Vérifiez les marges et le gabarit du PDF."
-        )
-
-    return cropped
+    content = image.crop((left, top, right + 1, bottom + 1))
+    return ImageOps.expand(content, border=1, fill="white")
 
 
 def split_halves(image: Image.Image) -> Tuple[Image.Image, Image.Image]:
     width, height = image.size
     middle = width // 2
-    left = image.crop((0, 0, middle, height))
-    right = image.crop((middle, 0, width, height))
-    if abs(left.width - right.width) > 1:
-        fail(
-            "Les moitiés gauche et droite n'ont pas la même largeur "
-            f"({left.width} px contre {right.width} px)."
-        )
-    if left.height != right.height:
-        fail("Les moitiés gauche et droite n'ont pas la même hauteur.")
-    return left, right
+    return (
+        image.crop((0, 0, middle, height)),
+        image.crop((middle, 0, width, height)),
+    )
 
 
 def split_rows(side_image: Image.Image) -> Tuple[Image.Image, ...]:
-    expected_rows = 4
     width, height = side_image.size
-    row_height = height / expected_rows
-    cuts = [0]
-    accumulated_height = 0.0
-    for _ in range(expected_rows - 1):
-        accumulated_height += row_height
-        cuts.append(int(round(accumulated_height)))
-    cuts.append(height)
-
-    rows, heights = [], []
-    for row_index in range(expected_rows):
-        top, bottom = cuts[row_index], cuts[row_index + 1]
-        if bottom <= top:
-            fail("Impossible de découper la demi-page en quatre lignes valides.")
-        rows.append(side_image.crop((0, top, width, bottom)))
-        heights.append(bottom - top)
-
-    if (max(heights) - min(heights)) > 2:
-        fail(
-            f"Les hauteurs de ligne varient trop ({heights}) : "
-            f"l'écart de {max(heights) - min(heights)} px dépasse 2 px."
-        )
-    return tuple(rows)
+    cuts = [round(row * height / 4) for row in range(5)]
+    return tuple(
+        side_image.crop((0, cuts[row], width, cuts[row + 1])) for row in range(4)
+    )
 
 
 def trim_white_edges_midlines(card_img: Image.Image) -> Image.Image:
@@ -226,8 +184,6 @@ def make_external_white_transparent(card_img: Image.Image) -> Image.Image:
     """
     rgb_image = to_rgb_white_bg(card_img)
     rgb = np.asarray(rgb_image, dtype=np.uint8)
-    if rgb.size == 0:
-        return rgb_image.convert("RGBA")
 
     luminance = np.asarray(ImageOps.grayscale(rgb_image), dtype=np.uint8)
     outline = luminance < MAX_OUTLINE_LUMINANCE
@@ -370,20 +326,13 @@ def sample_border_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]
 
     pixels = np.asarray(image, dtype=np.uint8)
     height, width = pixels.shape[:2]
-    if height == 0 or width == 0:
-        return None
 
     center_x = width // 2
     # On descend assez dans la carte pour couvrir aussi les bordures un peu épaisses.
     scan_depth = min(height, max(BORDER_OFFSET_PX + BORDER_BAND_PX, 24))
     x0 = max(0, center_x - 2)
     x1 = min(width, center_x + 3)
-    y0 = 0
-    y1 = scan_depth
-
-    region = pixels[y0:y1, x0:x1, :]
-    if region.size == 0:
-        return None
+    region = pixels[:scan_depth, x0:x1, :]
 
     if image.mode == "RGBA":
         alpha = region[:, :, 3].astype(np.uint16)
@@ -411,22 +360,11 @@ def sample_border_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]
     mask = alpha_mask & color_mask
 
     if not np.any(mask):
-        # En dernier recours, on conserve tous les pixels à la position attendue.
-        fallback_y0 = min(BORDER_OFFSET_PX, height - 1)
-        fallback_y1 = min(height, fallback_y0 + BORDER_BAND_PX)
-        fallback_region = pixels[fallback_y0:fallback_y1, x0:x1, :]
-        if image.mode == "RGBA":
-            fallback_alpha = fallback_region[:, :, 3]
-            fallback_rgb = fallback_region[:, :, :3][fallback_alpha >= 200]
-        else:
-            fallback_rgb = fallback_region.reshape(-1, 3)
-        return _median_rgb(fallback_rgb.reshape(-1, 3)) if fallback_rgb.size else None
+        return None
 
     # Les 15 % les plus saturés isolent bien la bordure du fond blanc.
     selected_saturation = saturation[mask].ravel()
     selected_rgb = rgb_region[mask].reshape(-1, 3)
-    if selected_saturation.size == 0:
-        return None
     selected_count = max(20, int(0.15 * selected_saturation.size))
     if selected_count >= selected_saturation.size:
         most_saturated_rgb = selected_rgb
@@ -470,8 +408,6 @@ def sample_timer_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]:
 
     pixels = np.asarray(image, dtype=np.uint8)
     height, width = pixels.shape[:2]
-    if height == 0 or width == 0:
-        return None
 
     # Les coordonnées du gabarit sont adaptées aux dimensions de la carte rendue.
     timer_x = int(round((TIMER_X / TIMER_REFERENCE_WIDTH) * width))
@@ -517,35 +453,12 @@ CHAPTER_RE = re.compile(
     r"(?:^|[^a-z0-9])(?:chap(?:ter)?|chapitre|ch)\s*[-_]*\s*(\d+)",
     re.IGNORECASE,
 )
-FALLBACK_NUM_RE = re.compile(r"(\d+)")
 
 
 def _extract_chapter_number(filename: str) -> Optional[int]:
     stem = os.path.splitext(os.path.basename(filename))[0]
     match = CHAPTER_RE.search(stem)
-    if match:
-        return int(match.group(1))
-    match = FALLBACK_NUM_RE.search(stem)
-    if match:
-        return int(match.group(1))
-    return None
-
-
-def _choose_from_duplicates(label: str, names: List[str]) -> str:
-    print(f"\nPlusieurs PDFs pour {label} :")
-    for i, name in enumerate(names, 1):
-        print(f"  [{i}] {name}")
-    while True:
-        choice = input("Choisissez un numéro dans la liste : ").strip()
-        if choice.lower() in {"q", "quit", "exit"}:
-            fail("Annulé par l'utilisateur.", code=0)
-        if not choice.isdigit():
-            print("Veuillez entrer un numéro valide.")
-            continue
-        selection_index = int(choice)
-        if 1 <= selection_index <= len(names):
-            return names[selection_index - 1]
-        print(f"Veuillez entrer un nombre entre 1 et {len(names)}.")
+    return int(match.group(1)) if match else None
 
 
 def ask_user_to_choose_profile() -> str:
@@ -553,19 +466,17 @@ def ask_user_to_choose_profile() -> str:
     profile_names = list(PROFILES)
     print("\nProfils de traitement :")
     for index, profile_name in enumerate(profile_names, 1):
-        print(f"  [{index}] {PROFILE_LABELS[profile_name]}")
+        print(f"  [{index}] {PROFILES[profile_name].label}")
 
     while True:
         choice = input(
             "\nChoisissez un profil ([1] par défaut, 'q' pour quitter) : "
-        ).strip()
-        if choice.lower() in {"q", "quit", "exit"}:
+        ).strip() or "1"
+        if choice.lower() == "q":
             fail("Annulé par l'utilisateur.", code=0)
-        if choice == "":
-            choice = "1"
         if choice.isdigit() and 1 <= int(choice) <= len(profile_names):
             profile_name = profile_names[int(choice) - 1]
-            print(f"Profil sélectionné : {PROFILE_LABELS[profile_name]}")
+            print(f"Profil sélectionné : {PROFILES[profile_name].label}")
             return profile_name
         print(f"Veuillez entrer un nombre entre 1 et {len(profile_names)}.")
 
@@ -576,85 +487,50 @@ def ask_user_to_choose_pdf(search_dir: str) -> List[str]:
     except Exception as error:
         fail(f"Impossible de lister le répertoire '{search_dir}' : {error}")
 
-    pdfs = [f for f in entries if f.lower().endswith(".pdf")]
+    pdfs = sorted(
+        (name for name in entries if name.lower().endswith(".pdf")),
+        key=str.lower,
+    )
     if not pdfs:
         fail(f"Aucun fichier .pdf trouvé dans : {os.path.abspath(search_dir)}")
 
-    chapter_map: Dict[int, List[str]] = {}
-    no_chapter: List[str] = []
+    chapter_map: Dict[int, str] = {}
     for name in pdfs:
         chapter = _extract_chapter_number(name)
         if chapter is None:
-            no_chapter.append(name)
-        else:
-            chapter_map.setdefault(chapter, []).append(name)
-
-    for names in chapter_map.values():
-        names.sort(key=lambda n: n.lower())
-    no_chapter.sort(key=lambda n: n.lower())
-    chapters_sorted = sorted(chapter_map.keys())
-    ordered_pdfs: List[str] = []
-    for chapter in chapters_sorted:
-        ordered_pdfs.extend(chapter_map[chapter])
-    ordered_pdfs.extend(no_chapter)
+            continue
+        if chapter in chapter_map:
+            fail(
+                f"Plusieurs PDF correspondent au chapitre {chapter} : "
+                f"{chapter_map[chapter]} et {name}."
+            )
+        chapter_map[chapter] = name
 
     print("\nPDFs disponibles :")
     print("  [0] Tous les PDFs")
-    for chapter in chapters_sorted:
-        names = chapter_map[chapter]
-        if len(names) == 1:
-            print(f"  [{chapter}] {names[0]}")
-        else:
-            print(f"  [{chapter}] {len(names)} fichiers")
-            for i, name in enumerate(names, 1):
-                print(f"       ({i}) {name}")
-    if no_chapter:
-        print("  [s] PDFs sans numéro de chapitre reconnu :")
-        for i, name in enumerate(no_chapter, 1):
-            print(f"       ({i}) {name}")
+    for chapter, name in sorted(chapter_map.items()):
+        print(f"  [{chapter}] {name}")
 
     while True:
-        extra_option = (
-            ", 's' pour les PDFs sans numéro reconnu" if no_chapter else ""
-        )
         choice = input(
-            "\nEntrez le numéro du chapitre "
-            f"([0] pour tous{extra_option}, 'q' pour quitter) : "
-        ).strip().lower()
-        if choice in {"q", "quit", "exit"}:
+            "\nEntrez le numéro du chapitre ([0] pour tous, 'q' pour quitter) : "
+        ).strip()
+        if choice.lower() == "q":
             fail("Annulé par l'utilisateur.", code=0)
-        # « ? » reste accepté pour ne pas casser l'ancien raccourci du menu.
-        if choice in {"s", "?"} and no_chapter:
-            selected = (
-                _choose_from_duplicates("les PDFs sans numéro de chapitre", no_chapter)
-                if len(no_chapter) > 1
-                else no_chapter[0]
-            )
-            input_path = os.path.abspath(os.path.join(search_dir, selected))
-            print(f"Sélectionné : {selected}")
-            return [input_path]
         if choice.isdigit():
             chapter_number = int(choice)
             if chapter_number == 0:
                 print("Sélection : tous les PDFs.")
                 return [
                     os.path.abspath(os.path.join(search_dir, name))
-                    for name in ordered_pdfs
+                    for name in pdfs
                 ]
             if chapter_number in chapter_map:
-                names = chapter_map[chapter_number]
-                selected = (
-                    names[0]
-                    if len(names) == 1
-                    else _choose_from_duplicates(f"le chapitre {chapter_number}", names)
-                )
+                selected = chapter_map[chapter_number]
                 input_path = os.path.abspath(os.path.join(search_dir, selected))
                 print(f"Sélectionné : {selected}")
                 return [input_path]
-            print("Veuillez entrer un chapitre existant ou 0.")
-            continue
-        expected = ", 0 ou 's'" if no_chapter else " ou 0"
-        print(f"Veuillez entrer un chapitre valide{expected}.")
+        print("Veuillez entrer un chapitre existant ou 0.")
 
 
 def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
@@ -695,12 +571,9 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
     per_card: Dict[str, Dict[str, Any]] = {}
 
     card_index = 1
-    total_fronts = total_backs = 0
     extension = "webp"
-    canonical_front_size: Optional[Tuple[int, int]] = None
-    canonical_back_size: Optional[Tuple[int, int]] = None
-    front_size_consistent = True
-    back_size_consistent = True
+    front_sizes: set[Tuple[int, int]] = set()
+    back_sizes: set[Tuple[int, int]] = set()
 
     save_options = {
         "format": "WEBP",
@@ -717,15 +590,10 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
     for page_index in range(document.page_count):
         page = document.load_page(page_index)
         print(f"Traitement de la page {page_index + 1}/{document.page_count}...")
-        fronts_before_page = total_fronts
-        backs_before_page = total_backs
 
         rendered_page = render_page_to_image(page, dpi=profile.dpi)
         cropped_page = crop_to_one_px_margin(rendered_page)
         left_half, right_half = split_halves(cropped_page)
-
-        if left_half.height != right_half.height:
-            fail("Les deux moitiés n'ont plus la même hauteur après le rognage.")
 
         front_rows = split_rows(left_half)
         back_rows = split_rows(right_half)
@@ -753,31 +621,16 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
             front_image.save(front_path, **save_options)
             back_image.save(back_path, **save_options)
 
-            total_fronts += 1
-            total_backs += 1
             print(
                 f"  Carte {card_index} enregistrée | bordure={border_color} | timer={timer_color}"
             )
 
-            card_number = card_index
-            cards_by_border.get(border_color, cards_by_border["unknown"]).append(
-                card_number
-            )
-            cards_by_timer.get(timer_color, cards_by_timer["unknown"]).append(
-                card_number
-            )
-            front_size = front_image.size
-            back_size = back_image.size
-            if canonical_front_size is None:
-                canonical_front_size = front_size
-            elif canonical_front_size != front_size:
-                front_size_consistent = False
-            if canonical_back_size is None:
-                canonical_back_size = back_size
-            elif canonical_back_size != back_size:
-                back_size_consistent = False
+            cards_by_border[border_color].append(card_index)
+            cards_by_timer[timer_color].append(card_index)
+            front_sizes.add(front_image.size)
+            back_sizes.add(back_image.size)
 
-            per_card[str(card_number)] = {
+            per_card[str(card_index)] = {
                 "border": border_color,
                 "timer": timer_color,
                 "front": {"width": front_image.width, "height": front_image.height},
@@ -786,39 +639,34 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
 
             card_index += 1
 
-        if (
-            total_fronts - fronts_before_page != 4
-            or total_backs - backs_before_page != 4
-        ):
-            fail("Erreur interne : la page n'a pas produit exactement quatre cartes.")
-
+    total_cards = card_index - 1
     manifest: Dict[str, Any] = {
         "chapter": base_name,
         "asset_version": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
         "image_format": extension,
-        "total_cards": total_fronts,
+        "total_cards": total_cards,
         "cards_by_border": {k: sorted(v) for k, v in cards_by_border.items() if v},
         "cards_by_timer": {k: sorted(v) for k, v in cards_by_timer.items() if v},
         "per_card": per_card,
     }
-    if front_size_consistent and canonical_front_size is not None:
-        manifest["card_dimensions"] = manifest.get("card_dimensions", {})
-        manifest["card_dimensions"]["front"] = {
-            "width": canonical_front_size[0],
-            "height": canonical_front_size[1],
+    if len(front_sizes) == 1:
+        front_width, front_height = front_sizes.pop()
+        manifest["card_dimensions"] = {
+            "front": {"width": front_width, "height": front_height}
         }
-    if back_size_consistent and canonical_back_size is not None:
+    if len(back_sizes) == 1:
+        back_width, back_height = back_sizes.pop()
         manifest.setdefault("card_dimensions", {})
         manifest["card_dimensions"]["back"] = {
-            "width": canonical_back_size[0],
-            "height": canonical_back_size[1],
+            "width": back_width,
+            "height": back_height,
         }
     manifest_path = os.path.join(output_directory, "manifest.json")
     with open(manifest_path, "w", encoding="utf-8") as manifest_file:
         json.dump(manifest, manifest_file, ensure_ascii=False, indent=2)
 
     print(
-        f"\nTerminé : {total_fronts} rectos et {total_backs} versos dans {output_directory}."
+        f"\nTerminé : {total_cards} cartes dans {output_directory}."
         f"\nManifest : {manifest_path}\n"
     )
     document.close()
