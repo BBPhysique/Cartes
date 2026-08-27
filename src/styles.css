@@ -465,8 +465,10 @@ h1 {
   appearance: none;
   background: var(--color-white);
   border: 1px solid var(--color-grey-border);
-  width: 110px;
-  padding: 8px 22px 8px 12px;
+  width: var(--chapter-select-width, 96px);
+  min-width: 92px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 28px 8px 13px;
   border-radius: var(--radius-pill);
   font-family: var(--font-family-base);
   font-size: var(--font-size-link);
@@ -474,10 +476,15 @@ h1 {
   line-height: 1.4;
   color: var(--color-woodsmoke);
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition:
+    width 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 180ms ease,
+    box-shadow 180ms ease;
   background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%236c6c6d' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 7px center;
+  background-position: right 11px center;
   background-size: 10px;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
@@ -1860,12 +1867,8 @@ body.modal-open .footer-section {
     grid-column: 1 / -1;
     grid-row: 2;
     position: static;
-    width: 104px;
     margin: 0 auto;
-    padding-right: 22px;
-    padding-left: 12px;
     transform: none;
-    background-position: right 7px center;
   }
 
   /* Add separator before mode toggle */

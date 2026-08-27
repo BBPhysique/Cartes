@@ -12,6 +12,7 @@ export default defineConfig(({ command }) => ({
     rollupOptions: {
       input: {
         main: './index.html',
+        terms: './terms/index.html',
       },
     },
   },

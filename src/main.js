@@ -20,6 +20,34 @@ import {
   updateDifficultyUI,
 } from './ui/updates.js';
 
+const chapterSelectTextMeasurer = document.createElement('canvas').getContext('2d');
+
+/**
+ * Size the chapter selector to its current label while preserving room for its arrow.
+ * @param {HTMLSelectElement} select
+ */
+function syncChapterSelectWidth(select) {
+  const option = select.selectedOptions[0];
+  if (!option || !chapterSelectTextMeasurer) return;
+
+  const styles = getComputedStyle(select);
+  chapterSelectTextMeasurer.font = [
+    styles.fontStyle,
+    styles.fontWeight,
+    styles.fontSize,
+    styles.fontFamily,
+  ].join(' ');
+
+  const textWidth = chapterSelectTextMeasurer.measureText(option.textContent).width;
+  const horizontalChrome =
+    parseFloat(styles.paddingLeft) +
+    parseFloat(styles.paddingRight) +
+    parseFloat(styles.borderLeftWidth) +
+    parseFloat(styles.borderRightWidth);
+
+  select.style.setProperty('--chapter-select-width', `${Math.ceil(textWidth + horizontalChrome)}px`);
+}
+
 /**
  * Build the chapter select dropdown
  * @param {number[]} chapters
@@ -37,11 +65,15 @@ function buildChapterSelect(chapters) {
   const storedChapter = getStoredChapter(chapters);
   const initial = storedChapter ?? (chapters.includes(1) ? 1 : chapters[0]);
   sel.value = String(initial);
+  syncChapterSelectWidth(sel);
   sel.addEventListener('change', async (e) => {
+    syncChapterSelectWidth(e.currentTarget);
     const val = parseInt(e.target.value, 10);
     await loadChapter(val);
     storeSelectedChapter(val);
   });
+
+  document.fonts?.ready.then(() => syncChapterSelectWidth(sel));
   return initial;
 }
 

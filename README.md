@@ -19,22 +19,22 @@ Pour régénérer les cartes, installer aussi Python 3.11+ puis `pymupdf`, `pill
 
 ## Mettre à jour les cartes
 
-Méthode automatique : ajouter le PDF dans `flashcards/`, puis pousser sur `main`. GitHub Actions régénère et déploie les cartes.
+Méthode automatique : ajouter le PDF dans `flashcards/`, puis push sur `main`. GitHub Actions régénère et déploie les cartes.
 
-Vérification locale recommandée :
+Sinon, la méthode recommandée : regénérer et vérifier localement
 
 1. Exécuter `python cartes.py` depuis la racine.
 2. Vérifier `flashcards/<nom-du-pdf>/` et son `manifest.json`.
 3. Exécuter `npm run build`, puis `npm run preview`.
-4. Valider et pousser les fichiers générés.
+4. Valider et push les fichiers générés.
 
 ## Déploiement
 
-Le workflow **Deploy Dist** construit `dist/` et le publie sur la branche `deploy`. Le fichier `public/.htaccess` est copié automatiquement par Vite.
+Le workflow **Deploy Dist** construit `dist/` et le publie sur la branche `deploy`.
 
 ## Licences
 
 - Code hors `flashcards/` : [licence MIT](./LICENSE).
 - Contenu de `flashcards/` : [GNU Free Documentation License 1.3](./LICENSE-FLASHCARDS).
 
-Toute redistribution ou modification des cartes doit respecter la GNU FDL 1.3.
+/!\ Toute redistribution ou modification des cartes doit respecter la GNU FDL 1.3.
