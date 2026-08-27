@@ -25,13 +25,14 @@ import pymupdf
 from PIL import Image, ImageOps
 from scipy import ndimage
 
-# Une bordure plus claire est de l'anti-crénelage, pas le contour solide de la carte.
-# Ce plafond permet donc de retrouver proprement la forme, quelle que soit la couleur.
+# Ces valeurs servent à distinguer la carte du fond blanc.
+# Elles permettent aussi de garder des bords lisses après la suppression du fond.
 MAX_OUTLINE_LUMINANCE = 210
 EDGE_ANTIALIAS_WIDTH_PX = 2
 WHITE_THRESHOLD = 220
 
-# Ces positions appartiennent au gabarit des flashcards, pas à l'utilisateur.
+# Ces nombres indiquent où chercher la bordure et le minuteur sur une carte.
+# Les positions sont ensuite adaptées à la taille réelle de l'image.
 BORDER_OFFSET_PX = 6
 BORDER_BAND_PX = 6
 TIMER_X = 1100
@@ -54,18 +55,18 @@ class ProcessingProfile:
 
 
 PROFILES = {
-    # Bon compromis poids/qualité pour le site : c'est le mode recommandé.
+    # Choix conseillé pour le site : des images nettes et pas trop lourdes.
     "web": ProcessingProfile(
         label="Web — recommandé, bon équilibre entre qualité et poids", dpi=300
     ),
-    # Même définition, mais sans aucune perte de compression.
+    # Choix pour l'archivage : qualité maximale, mais fichiers plus lourds.
     "lossless": ProcessingProfile(
         label="Sans perte — qualité maximale pour l'archivage",
         dpi=300,
         alpha_quality=100,
         lossless=True,
     ),
-    # Rendu deux fois moins large et encodage plus rapide pour contrôler un PDF.
+    # Choix pour un essai rapide avant de lancer la version finale.
     "fast": ProcessingProfile(
         label="Rapide — aperçu plus léger à générer",
         dpi=150,
@@ -146,8 +147,8 @@ def trim_white_edges_midlines(card_img: Image.Image) -> Image.Image:
     max_horizontal_trim = max(1, int(round(width * 0.08)))
     max_vertical_trim = max(1, int(round(height * 0.08)))
 
-    # NumPy teste ici toutes les lignes et colonnes d'un coup : c'est plus lisible
-    # et nettement moins coûteux que quatre boucles Python pixel par pixel.
+    # On regarde le milieu de chaque côté pour trouver les marges blanches à retirer.
+    # Cela évite de couper une illustration placée près d'un bord.
     white_columns = (luminance[row_start:row_end, :] >= WHITE_THRESHOLD).mean(
         axis=0
     ) >= 0.98
@@ -199,8 +200,8 @@ def make_external_white_transparent(card_img: Image.Image) -> Image.Image:
         rows, columns = component_slices[label_id - 1]
         return (rows.stop - rows.start) * (columns.stop - columns.start)
 
-    # Le contour entoure presque toute l'image : sa boîte est donc la plus grande,
-    # même lorsqu'une illustration intérieure contient davantage de pixels.
+    # Parmi les formes trouvées, la bordure est celle qui entoure la plus grande zone.
+    # Les textes et les illustrations occupent des zones plus petites à l'intérieur.
     card_label = max(range(1, label_count + 1), key=bounding_area)
     card_outline = labels == card_label
     card_mask = ndimage.binary_fill_holes(card_outline)
@@ -213,7 +214,8 @@ def make_external_white_transparent(card_img: Image.Image) -> Image.Image:
         & ~card_mask
     )
 
-    # Le blanc de fond est lu dans les coins au lieu d'être supposé parfaitement pur.
+    # La couleur du fond est mesurée dans les coins, car le blanc du PDF peut varier
+    # légèrement. Le fond est ainsi retiré plus proprement.
     corner_size = max(2, min(8, min(rgb.shape[:2]) // 4))
     corner_pixels = np.concatenate(
         (
@@ -225,10 +227,8 @@ def make_external_white_transparent(card_img: Image.Image) -> Image.Image:
     )
     background_rgb = np.median(corner_pixels, axis=0).astype(np.float32)
 
-    # C = alpha * bordure + (1 - alpha) * fond. Cette projection retrouve alpha
-    # sur les trois canaux à la fois et reste stable malgré les arrondis du rendu PDF.
-    # La bordure est un aplat : sa médiane donne une couleur bien plus stable que
-    # chaque pixel anti-crénelé et évite un calcul de distance coûteux sur l'image.
+    # Au bord de la carte, certains pixels mélangent la couleur du contour et celle
+    # du fond. On calcule leur transparence pour conserver un bord doux et naturel.
     border_rgb = np.median(rgb[card_outline], axis=0).astype(np.float32)
     foreground_vector = background_rgb - border_rgb
     observed_vector = background_rgb - rgb.astype(np.float32)
@@ -243,8 +243,8 @@ def make_external_white_transparent(card_img: Image.Image) -> Image.Image:
     alpha[card_mask] = 1.0
     alpha[antialias_ring] = edge_alpha[antialias_ring]
 
-    # Les pixels semi-transparents reprennent la vraie couleur voisine de la bordure.
-    # Leur couleur ne contient ainsi plus de blanc prémélangé susceptible de faire un halo.
+    # La couleur de ces pixels est corrigée pour qu'aucun trait blanc n'apparaisse
+    # autour de la carte lorsqu'elle est affichée sur un fond sombre.
     cleaned_rgb = rgb.copy()
     visible_edge = antialias_ring & (edge_alpha > 0.0)
     cleaned_rgb[visible_edge] = border_rgb.astype(np.uint8)
@@ -253,7 +253,8 @@ def make_external_white_transparent(card_img: Image.Image) -> Image.Image:
     return Image.fromarray(rgba, mode="RGBA")
 
 
-# Détection des couleurs de bordure et de minuteur
+# Les bordures et les minuteurs n'utilisent pas exactement les mêmes couleurs.
+# Chacun possède donc sa propre liste de couleurs possibles.
 
 ColorName = str
 
@@ -291,13 +292,13 @@ def _classify_hsv(
     value: float,
     candidates: Dict[ColorName, float],
 ) -> ColorName:
-    # Une teinte trop terne ou trop sombre ne peut pas être identifiée fiablement.
+    # Une zone trop grise ou trop sombre ne permet pas de reconnaître une couleur.
     if saturation < 0.15 or value < 0.15:
         return "unknown"
     name, reference_hue = min(
         candidates.items(), key=lambda candidate: _hue_distance(hue, candidate[1])
     )
-    # La tolérance couvre les variations du rendu sans forcer une mauvaise couleur.
+    # Une couleur trop éloignée de la liste connue reste classée comme inconnue.
     if _hue_distance(hue, reference_hue) > 35.0:
         return "unknown"
     return name
@@ -306,7 +307,6 @@ def _classify_hsv(
 def _median_rgb(pixels: np.ndarray) -> Optional[Tuple[int, int, int]]:
     if pixels.size == 0:
         return None
-    # Le tableau contient une ligne RGB par pixel : (nombre de pixels, 3).
     red = int(np.median(pixels[:, 0]))
     green = int(np.median(pixels[:, 1]))
     blue = int(np.median(pixels[:, 2]))
@@ -328,7 +328,8 @@ def sample_border_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]
     height, width = pixels.shape[:2]
 
     center_x = width // 2
-    # On descend assez dans la carte pour couvrir aussi les bordures un peu épaisses.
+    # La couleur est lue sur une petite zone au milieu du bord supérieur.
+    # C'est plus fiable que de regarder un seul pixel.
     scan_depth = min(height, max(BORDER_OFFSET_PX + BORDER_BAND_PX, 24))
     x0 = max(0, center_x - 2)
     x1 = min(width, center_x + 3)
@@ -342,7 +343,7 @@ def sample_border_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]
         alpha_mask = np.ones(region.shape[:2], dtype=bool)
         rgb_region = region
 
-    # Une approximation de la saturation suffit pour écarter le blanc et le gris.
+    # Le fond blanc, les zones grises et les pixels transparents sont ignorés.
     red = rgb_region[:, :, 0].astype(np.float32)
     green = rgb_region[:, :, 1].astype(np.float32)
     blue = rgb_region[:, :, 2].astype(np.float32)
@@ -362,7 +363,8 @@ def sample_border_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]
     if not np.any(mask):
         return None
 
-    # Les 15 % les plus saturés isolent bien la bordure du fond blanc.
+    # On garde les pixels où la couleur ressort le plus, puis on en tire une couleur
+    # représentative. Le résultat reste fiable même si un peu de fond est encore présent.
     selected_saturation = saturation[mask].ravel()
     selected_rgb = rgb_region[mask].reshape(-1, 3)
     selected_count = max(20, int(0.15 * selected_saturation.size))
@@ -384,11 +386,11 @@ def classify_border_color(rgb: Optional[Tuple[int, int, int]]) -> ColorName:
     name = _classify_hsv(hue, saturation, value, BORDER_CANDIDATES)
     if name != "unknown":
         return name
-    # Ces deux règles récupèrent les bordures peu saturées mais visuellement nettes.
+    # Le vert et le violet ont droit à une seconde vérification, car le rendu du PDF
+    # peut les rendre trop pâles pour la méthode habituelle.
     red, green, blue = rgb
     if green >= 95 and green >= 1.18 * max(red, blue):
         return "green"
-    # Un violet contient beaucoup de rouge et de bleu, mais peu de vert.
     if min(red, blue) >= 95 and min(red, blue) >= 1.15 * green:
         return "purple"
     return "unknown"
@@ -409,10 +411,11 @@ def sample_timer_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]:
     pixels = np.asarray(image, dtype=np.uint8)
     height, width = pixels.shape[:2]
 
-    # Les coordonnées du gabarit sont adaptées aux dimensions de la carte rendue.
+    # La position du minuteur vient du modèle d'origine. Elle est adaptée à la taille
+    # de l'image, dont les lignes sont comptées depuis le haut.
     timer_x = int(round((TIMER_X / TIMER_REFERENCE_WIDTH) * width))
     timer_y_from_bottom = int(round((TIMER_Y / TIMER_REFERENCE_HEIGHT) * height))
-    timer_y = height - 1 - timer_y_from_bottom  # PIL utilise l'origine en haut.
+    timer_y = height - 1 - timer_y_from_bottom
 
     x0 = max(0, timer_x - TIMER_SAMPLE_RADIUS)
     x1 = min(width, timer_x + TIMER_SAMPLE_RADIUS + 1)
@@ -434,10 +437,10 @@ def classify_timer_color(rgb: Optional[Tuple[int, int, int]]) -> ColorName:
     if rgb is None:
         return "unknown"
     hue, saturation, value = _rgb_to_hsv_deg(rgb)
-    # Une couleur terne ou sombre ne permet pas d'identifier le minuteur proprement.
+    # Une zone trop grise ou trop sombre ne permet pas de reconnaître le minuteur.
     if saturation < 0.15 or value < 0.18:
         return "unknown"
-    # Ces plages correspondent aux couleurs de minuteur présentes dans les PDF.
+    # Ces limites correspondent aux quatre couleurs de minuteur utilisées dans les PDF.
     if 75.0 <= hue <= 160.0:
         return "green"
     if 45.0 <= hue < 75.0:
@@ -578,8 +581,8 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
     save_options = {
         "format": "WEBP",
         "method": profile.webp_method,
-        # 90 conserve ici les mêmes valeurs d'alpha que 100, avec un encodage
-        # beaucoup plus rapide dès que les coins sont semi-transparents.
+        # La transparence possède son propre réglage pour garder des bords propres
+        # sans ralentir inutilement la création des images.
         "alpha_quality": profile.alpha_quality,
     }
     if profile.lossless:
@@ -588,6 +591,8 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
         save_options["quality"] = profile.webp_quality
 
     for page_index in range(document.page_count):
+        # Une page contient quatre rectos à gauche et leurs quatre versos à droite.
+        # Une carte est donc formée en associant les images placées sur la même ligne.
         page = document.load_page(page_index)
         print(f"Traitement de la page {page_index + 1}/{document.page_count}...")
 
@@ -599,6 +604,8 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
         back_rows = split_rows(right_half)
 
         for row_index in range(4):
+            # Le recto et le verso sont découpés de la même façon. La couleur de la
+            # bordure et celle du minuteur sont ensuite lues uniquement sur le recto.
             front_image = trim_white_edges_midlines(front_rows[row_index])
             back_image = trim_white_edges_midlines(back_rows[row_index])
 
@@ -640,6 +647,8 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
             card_index += 1
 
     total_cards = card_index - 1
+    # Le fichier manifest.json résume le résultat pour le site : nombre de cartes, couleurs,
+    # noms des images et dimensions communes lorsqu'elles sont toutes identiques.
     manifest: Dict[str, Any] = {
         "chapter": base_name,
         "asset_version": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
@@ -676,7 +685,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Découpe un PDF de flashcards en WebP transparents et crée le manifest.json."
     )
-    # Le dossier voisin « flashcards » évite de demander un chemin à chaque lancement.
+    # Sans option, les PDF sont cherchés dans le dossier « flashcards » placé
+    # à côté du script.
     default_search = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "flashcards"
     )
@@ -701,7 +711,8 @@ def main():
     )
     args = parser.parse_args()
 
-    # Avec --pdf, le mode reste automatisable : Web s'applique si le profil est omis.
+    # Avec --pdf, le script peut fonctionner sans poser de question. Si aucun profil
+    # n'est indiqué, il utilise automatiquement le profil web.
     profile_name = args.profile or (
         "web" if args.pdf else ask_user_to_choose_profile()
     )

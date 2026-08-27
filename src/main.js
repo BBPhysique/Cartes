@@ -1,6 +1,5 @@
 /**
- * Cartes - Flashcard Application
- * Entry point
+ * App entry point
  */
 
 import './styles.css';
