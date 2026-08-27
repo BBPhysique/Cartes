@@ -28,7 +28,7 @@ Sinon, la méthode recommandée : regénérer et vérifier localement
 3. Exécuter `npm run build`, puis `npm run preview`.
 4. Valider et push les fichiers générés.
 
-Le profil `web` est utilisé par défaut (environ 1min20 pour traiter tous les chapitres). `--profile lossless` conserve les images sans perte et `--profile fast` produit rapidement un aperçu léger.
+Le script demande d'abord le profil de traitement, puis le chapitre. Appuyer sur Entrée choisit le profil `web`, recommandé pour le site (environ 1min20 pour traiter tous les chapitres). Les options `--profile lossless` et `--profile fast` permettent aussi de fixer directement le profil depuis la commande.
 
 ## Déploiement
 

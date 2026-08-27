@@ -63,6 +63,12 @@ PROFILES = {
     ),
 }
 
+PROFILE_LABELS = {
+    "web": "Web — recommandé, bon équilibre entre qualité et poids",
+    "lossless": "Sans perte — qualité maximale pour l'archivage",
+    "fast": "Rapide — aperçu plus léger à générer",
+}
+
 
 def fail(message: str, code: int = 1):
     print(f"ERREUR : {message}", file=sys.stderr)
@@ -291,9 +297,7 @@ def make_external_white_transparent(card_img: Image.Image) -> Image.Image:
     return Image.fromarray(rgba, mode="RGBA")
 
 
-# ------------------------------
-# Détection couleurs (bordure & timer)
-# ------------------------------
+# Détection des couleurs de bordure et de minuteur
 
 ColorName = str
 
@@ -331,15 +335,14 @@ def _classify_hsv(
     value: float,
     candidates: Dict[ColorName, float],
 ) -> ColorName:
-    # Si très peu saturé ou très sombre, on ne sait pas
+    # Une teinte trop terne ou trop sombre ne peut pas être identifiée fiablement.
     if saturation < 0.15 or value < 0.15:
         return "unknown"
-    # Choix par proximité d'angle de teinte
     name, reference_hue = min(
         candidates.items(), key=lambda candidate: _hue_distance(hue, candidate[1])
     )
-    # Tolérance : si trop loin, on bascule en unknown
-    if _hue_distance(hue, reference_hue) > 35.0:  # tolérance généreuse
+    # La tolérance couvre les variations du rendu sans forcer une mauvaise couleur.
+    if _hue_distance(hue, reference_hue) > 35.0:
         return "unknown"
     return name
 
@@ -357,12 +360,8 @@ def _median_rgb(pixels: np.ndarray) -> Optional[Tuple[int, int, int]]:
 def sample_border_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]:
     """Échantillonne la couleur de la bordure en haut de la carte.
 
-    Plus robuste qu'un prélèvement ponctuel : on examine une petite
-    fenêtre verticale au-dessus du contenu pour capter une bordure fine ou des
-    teintes peu saturées (vert clair, violet). On sélectionne les pixels les plus
-    saturés dans cette fenêtre puis on prend la médiane de leurs RGB.
-
-    Ignore les pixels entièrement transparents si présents.
+    Une petite bande verticale est plus fiable qu'un pixel isolé pour repérer
+    les bordures fines ou peu saturées. Les pixels transparents sont ignorés.
     """
     if card_img.mode not in ("RGB", "RGBA"):
         image = card_img.convert("RGBA")
@@ -447,7 +446,7 @@ def classify_border_color(rgb: Optional[Tuple[int, int, int]]) -> ColorName:
     name = _classify_hsv(hue, saturation, value, BORDER_CANDIDATES)
     if name != "unknown":
         return name
-    # Secours pour les bordures peu saturées mais visuellement dominantes.
+    # Ces deux règles récupèrent les bordures peu saturées mais visuellement nettes.
     red, green, blue = rgb
     if green >= 95 and green >= 1.18 * max(red, blue):
         return "green"
@@ -458,11 +457,11 @@ def classify_border_color(rgb: Optional[Tuple[int, int, int]]) -> ColorName:
 
 
 def sample_timer_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]:
-    """Échantillonne la couleur autour du centre du timer.
+    """Échantillonne la couleur autour du centre du minuteur.
+
     Les coordonnées sont définies sur l'image de référence, avec une origine
     en bas à gauche, puis adaptées proportionnellement à la taille réelle.
-    Le rayon de la zone de prélèvement est adapté au gabarit des cartes.
-    Ignore les pixels entièrement transparents si présents.
+    Les pixels transparents sont ignorés.
     """
     if card_img.mode not in ("RGB", "RGBA"):
         image = card_img.convert("RGBA")
@@ -474,10 +473,10 @@ def sample_timer_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]:
     if height == 0 or width == 0:
         return None
 
-    # Mise à l'échelle des coordonnées
+    # Les coordonnées du gabarit sont adaptées aux dimensions de la carte rendue.
     timer_x = int(round((TIMER_X / TIMER_REFERENCE_WIDTH) * width))
     timer_y_from_bottom = int(round((TIMER_Y / TIMER_REFERENCE_HEIGHT) * height))
-    timer_y = height - 1 - timer_y_from_bottom  # conversion origine haut-gauche
+    timer_y = height - 1 - timer_y_from_bottom  # PIL utilise l'origine en haut.
 
     x0 = max(0, timer_x - TIMER_SAMPLE_RADIUS)
     x1 = min(width, timer_x + TIMER_SAMPLE_RADIUS + 1)
@@ -499,10 +498,10 @@ def classify_timer_color(rgb: Optional[Tuple[int, int, int]]) -> ColorName:
     if rgb is None:
         return "unknown"
     hue, saturation, value = _rgb_to_hsv_deg(rgb)
-    # Une couleur terne ou sombre ne permet pas d'identifier le timer proprement.
+    # Une couleur terne ou sombre ne permet pas d'identifier le minuteur proprement.
     if saturation < 0.15 or value < 0.18:
         return "unknown"
-    # Ces plages proviennent des couleurs de timer effectivement présentes dans les PDF.
+    # Ces plages correspondent aux couleurs de minuteur présentes dans les PDF.
     if 75.0 <= hue <= 160.0:
         return "green"
     if 45.0 <= hue < 75.0:
@@ -549,6 +548,28 @@ def _choose_from_duplicates(label: str, names: List[str]) -> str:
         print(f"Veuillez entrer un nombre entre 1 et {len(names)}.")
 
 
+def ask_user_to_choose_profile() -> str:
+    """Demande le profil de rendu avant la sélection du chapitre."""
+    profile_names = list(PROFILES)
+    print("\nProfils de traitement :")
+    for index, profile_name in enumerate(profile_names, 1):
+        print(f"  [{index}] {PROFILE_LABELS[profile_name]}")
+
+    while True:
+        choice = input(
+            "\nChoisissez un profil ([1] par défaut, 'q' pour quitter) : "
+        ).strip()
+        if choice.lower() in {"q", "quit", "exit"}:
+            fail("Annulé par l'utilisateur.", code=0)
+        if choice == "":
+            choice = "1"
+        if choice.isdigit() and 1 <= int(choice) <= len(profile_names):
+            profile_name = profile_names[int(choice) - 1]
+            print(f"Profil sélectionné : {PROFILE_LABELS[profile_name]}")
+            return profile_name
+        print(f"Veuillez entrer un nombre entre 1 et {len(profile_names)}.")
+
+
 def ask_user_to_choose_pdf(search_dir: str) -> List[str]:
     try:
         entries = os.listdir(search_dir)
@@ -588,17 +609,22 @@ def ask_user_to_choose_pdf(search_dir: str) -> List[str]:
             for i, name in enumerate(names, 1):
                 print(f"       ({i}) {name}")
     if no_chapter:
-        print("  [?] PDFs sans numéro de chapitre :")
+        print("  [s] PDFs sans numéro de chapitre reconnu :")
         for i, name in enumerate(no_chapter, 1):
             print(f"       ({i}) {name}")
 
     while True:
+        extra_option = (
+            ", 's' pour les PDFs sans numéro reconnu" if no_chapter else ""
+        )
         choice = input(
-            "\nEntrez le numéro du chapitre ([0] pour tous, '?' pour sans chapitre, 'q' pour quitter) : "
-        ).strip()
-        if choice.lower() in {"q", "quit", "exit"}:
+            "\nEntrez le numéro du chapitre "
+            f"([0] pour tous{extra_option}, 'q' pour quitter) : "
+        ).strip().lower()
+        if choice in {"q", "quit", "exit"}:
             fail("Annulé par l'utilisateur.", code=0)
-        if choice == "?" and no_chapter:
+        # « ? » reste accepté pour ne pas casser l'ancien raccourci du menu.
+        if choice in {"s", "?"} and no_chapter:
             selected = (
                 _choose_from_duplicates("les PDFs sans numéro de chapitre", no_chapter)
                 if len(no_chapter) > 1
@@ -625,9 +651,10 @@ def ask_user_to_choose_pdf(search_dir: str) -> List[str]:
                 input_path = os.path.abspath(os.path.join(search_dir, selected))
                 print(f"Sélectionné : {selected}")
                 return [input_path]
-            print(f"Veuillez entrer un chapitre existant ou 0.")
+            print("Veuillez entrer un chapitre existant ou 0.")
             continue
-        print("Veuillez entrer un chapitre valide, 0 ou '?'.")
+        expected = ", 0 ou 's'" if no_chapter else " ou 0"
+        print(f"Veuillez entrer un chapitre valide{expected}.")
 
 
 def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
@@ -801,7 +828,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Découpe un PDF de flashcards en WebP transparents et crée le manifest.json."
     )
-    # Par défaut, chercher dans le dossier 'flashcards' à côté de ce script
+    # Le dossier voisin « flashcards » évite de demander un chemin à chaque lancement.
     default_search = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "flashcards"
     )
@@ -818,11 +845,19 @@ def main():
     parser.add_argument(
         "--profile",
         choices=PROFILES,
-        default="web",
-        help="Profil de sortie : web (recommandé), lossless (archive) ou fast (aperçu).",
+        default=None,
+        help=(
+            "Profil de sortie : web (recommandé), lossless (archive) ou fast "
+            "(aperçu). Sans cette option, le profil est demandé avant le chapitre."
+        ),
     )
     args = parser.parse_args()
-    profile = PROFILES[args.profile]
+
+    # Avec --pdf, le mode reste automatisable : Web s'applique si le profil est omis.
+    profile_name = args.profile or (
+        "web" if args.pdf else ask_user_to_choose_profile()
+    )
+    profile = PROFILES[profile_name]
 
     if args.pdf:
         selected = args.pdf
