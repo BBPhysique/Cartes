@@ -7,7 +7,7 @@ Flashcards CapECL : [capecl.fr/cartes](https://capecl.fr/cartes) · [miroir GitH
 1. Installer Node.js 20.19 ou plus récent.
 2. Exécuter `npm ci`.
 
-Pour régénérer les cartes, installer aussi Python 3.11+ puis `pymupdf`, `pillow` et `numpy`.
+Pour régénérer les cartes, installer aussi Python 3.11+ puis exécuter `pip install -r requirements.txt`.
 
 ## Développement
 
@@ -27,6 +27,8 @@ Sinon, la méthode recommandée : regénérer et vérifier localement
 2. Vérifier `flashcards/<nom-du-pdf>/` et son `manifest.json`.
 3. Exécuter `npm run build`, puis `npm run preview`.
 4. Valider et push les fichiers générés.
+
+Le profil `web` est utilisé par défaut (environ 1min20 pour traiter tous les chapitres). `--profile lossless` conserve les images sans perte et `--profile fast` produit rapidement un aperçu léger.
 
 ## Déploiement
 
