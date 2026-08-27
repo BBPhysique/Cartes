@@ -12,7 +12,7 @@ const rules = {
 };
 
 export default defineConfig([
-  globalIgnores(['dist/', 'node_modules/', 'assets/', 'flashcards/']),
+  globalIgnores(['dist/', 'node_modules/', '.venv/', 'assets/', 'flashcards/']),
   {
     files: ['src/**/*.js'],
     languageOptions: {

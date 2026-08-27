@@ -18,7 +18,7 @@ import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Never, NotRequired, TypedDict, cast
 
 import numpy as np
 import pymupdf
@@ -54,6 +54,15 @@ class ProcessingProfile:
     lossless: bool = False
 
 
+class WebPSaveOptions(TypedDict):
+    """Options WebP transmises à Pillow avec des types précis."""
+
+    method: int
+    alpha_quality: int
+    lossless: NotRequired[bool]
+    quality: NotRequired[int]
+
+
 PROFILES = {
     # Choix conseillé pour le site : des images nettes et pas trop lourdes.
     "web": ProcessingProfile(
@@ -77,7 +86,7 @@ PROFILES = {
 }
 
 
-def fail(message: str, code: int = 1):
+def fail(message: str, code: int = 1) -> Never:
     print(f"ERREUR : {message}", file=sys.stderr)
     sys.exit(code)
 
@@ -112,7 +121,7 @@ def crop_to_one_px_margin(image: Image.Image) -> Image.Image:
     return ImageOps.expand(content, border=1, fill="white")
 
 
-def split_halves(image: Image.Image) -> Tuple[Image.Image, Image.Image]:
+def split_halves(image: Image.Image) -> tuple[Image.Image, Image.Image]:
     width, height = image.size
     middle = width // 2
     return (
@@ -121,7 +130,7 @@ def split_halves(image: Image.Image) -> Tuple[Image.Image, Image.Image]:
     )
 
 
-def split_rows(side_image: Image.Image) -> Tuple[Image.Image, ...]:
+def split_rows(side_image: Image.Image) -> tuple[Image.Image, ...]:
     width, height = side_image.size
     cuts = [round(row * height / 4) for row in range(5)]
     return tuple(
@@ -137,15 +146,15 @@ def trim_white_edges_midlines(card_img: Image.Image) -> Image.Image:
     if height < 5 or width < 5:
         return image
 
-    band_height = max(3, int(round(height * 0.10)))
-    band_width = max(3, int(round(width * 0.10)))
+    band_height = max(3, round(height * 0.10))
+    band_width = max(3, round(width * 0.10))
     row_start = max(0, (height // 2) - (band_height // 2))
     row_end = min(height, row_start + band_height)
     column_start = max(0, (width // 2) - (band_width // 2))
     column_end = min(width, column_start + band_width)
 
-    max_horizontal_trim = max(1, int(round(width * 0.08)))
-    max_vertical_trim = max(1, int(round(height * 0.08)))
+    max_horizontal_trim = max(1, round(width * 0.08))
+    max_vertical_trim = max(1, round(height * 0.08))
 
     # On regarde le milieu de chaque côté pour trouver les marges blanches à retirer.
     # Cela évite de couper une illustration placée près d'un bord.
@@ -190,29 +199,33 @@ def make_external_white_transparent(card_img: Image.Image) -> Image.Image:
     outline = luminance < MAX_OUTLINE_LUMINANCE
     outline = ndimage.binary_closing(outline, structure=np.ones((3, 3), dtype=bool))
 
-    labels, label_count = ndimage.label(outline)
+    labels, label_count = cast(tuple[np.ndarray, int], ndimage.label(outline))
     if label_count == 0:
         fail("Impossible de détecter la bordure de la carte.")
 
     component_slices = ndimage.find_objects(labels)
 
     def bounding_area(label_id: int) -> int:
-        rows, columns = component_slices[label_id - 1]
+        component_slice = component_slices[label_id - 1]
+        if component_slice is None:
+            return 0
+        rows, columns = cast(tuple[slice, slice], component_slice)
         return (rows.stop - rows.start) * (columns.stop - columns.start)
 
     # Parmi les formes trouvées, la bordure est celle qui entoure la plus grande zone.
     # Les textes et les illustrations occupent des zones plus petites à l'intérieur.
     card_label = max(range(1, label_count + 1), key=bounding_area)
     card_outline = labels == card_label
-    card_mask = ndimage.binary_fill_holes(card_outline)
-    antialias_ring = (
+    card_mask = np.asarray(ndimage.binary_fill_holes(card_outline), dtype=bool)
+    dilated_mask = np.asarray(
         ndimage.binary_dilation(
             card_mask,
             structure=np.ones((3, 3), dtype=bool),
             iterations=EDGE_ANTIALIAS_WIDTH_PX,
-        )
-        & ~card_mask
+        ),
+        dtype=bool,
     )
+    antialias_ring = dilated_mask & ~card_mask
 
     # La couleur du fond est mesurée dans les coins, car le blanc du PDF peut varier
     # légèrement. Le fond est ainsi retiré plus proprement.
@@ -258,14 +271,14 @@ def make_external_white_transparent(card_img: Image.Image) -> Image.Image:
 
 ColorName = str
 
-BORDER_CANDIDATES: Dict[ColorName, float] = {
+BORDER_CANDIDATES: dict[ColorName, float] = {
     "red": 0.0,
     "orange": 30.0,
     "green": 120.0,
     "purple": 285.0,
 }
 
-TIMER_CANDIDATES: Dict[ColorName, float] = {
+TIMER_CANDIDATES: dict[ColorName, float] = {
     "red": 0.0,
     "orange": 33.0,
     "yellow": 54.0,
@@ -278,7 +291,7 @@ def _hue_distance(a: float, b: float) -> float:
     return min(distance, 360.0 - distance)
 
 
-def _rgb_to_hsv_deg(rgb: Tuple[int, int, int]) -> Tuple[float, float, float]:
+def _rgb_to_hsv_deg(rgb: tuple[int, int, int]) -> tuple[float, float, float]:
     red, green, blue = rgb
     hue, saturation, value = colorsys.rgb_to_hsv(
         red / 255.0, green / 255.0, blue / 255.0
@@ -290,7 +303,7 @@ def _classify_hsv(
     hue: float,
     saturation: float,
     value: float,
-    candidates: Dict[ColorName, float],
+    candidates: dict[ColorName, float],
 ) -> ColorName:
     # Une zone trop grise ou trop sombre ne permet pas de reconnaître une couleur.
     if saturation < 0.15 or value < 0.15:
@@ -304,7 +317,7 @@ def _classify_hsv(
     return name
 
 
-def _median_rgb(pixels: np.ndarray) -> Optional[Tuple[int, int, int]]:
+def _median_rgb(pixels: np.ndarray) -> tuple[int, int, int] | None:
     if pixels.size == 0:
         return None
     red = int(np.median(pixels[:, 0]))
@@ -313,7 +326,7 @@ def _median_rgb(pixels: np.ndarray) -> Optional[Tuple[int, int, int]]:
     return (red, green, blue)
 
 
-def sample_border_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]:
+def sample_border_color(card_img: Image.Image) -> tuple[int, int, int] | None:
     """Échantillonne la couleur de la bordure en haut de la carte.
 
     Une petite bande verticale est plus fiable qu'un pixel isolé pour repérer
@@ -379,7 +392,7 @@ def sample_border_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]
     return _median_rgb(most_saturated_rgb)
 
 
-def classify_border_color(rgb: Optional[Tuple[int, int, int]]) -> ColorName:
+def classify_border_color(rgb: tuple[int, int, int] | None) -> ColorName:
     if rgb is None:
         return "unknown"
     hue, saturation, value = _rgb_to_hsv_deg(rgb)
@@ -396,7 +409,7 @@ def classify_border_color(rgb: Optional[Tuple[int, int, int]]) -> ColorName:
     return "unknown"
 
 
-def sample_timer_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]:
+def sample_timer_color(card_img: Image.Image) -> tuple[int, int, int] | None:
     """Échantillonne la couleur autour du centre du minuteur.
 
     Les coordonnées sont définies sur l'image de référence, avec une origine
@@ -413,8 +426,8 @@ def sample_timer_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]:
 
     # La position du minuteur vient du modèle d'origine. Elle est adaptée à la taille
     # de l'image, dont les lignes sont comptées depuis le haut.
-    timer_x = int(round((TIMER_X / TIMER_REFERENCE_WIDTH) * width))
-    timer_y_from_bottom = int(round((TIMER_Y / TIMER_REFERENCE_HEIGHT) * height))
+    timer_x = round((TIMER_X / TIMER_REFERENCE_WIDTH) * width)
+    timer_y_from_bottom = round((TIMER_Y / TIMER_REFERENCE_HEIGHT) * height)
     timer_y = height - 1 - timer_y_from_bottom
 
     x0 = max(0, timer_x - TIMER_SAMPLE_RADIUS)
@@ -433,7 +446,7 @@ def sample_timer_color(card_img: Image.Image) -> Optional[Tuple[int, int, int]]:
     return _median_rgb(rgb.reshape(-1, 3)) if rgb.size else None
 
 
-def classify_timer_color(rgb: Optional[Tuple[int, int, int]]) -> ColorName:
+def classify_timer_color(rgb: tuple[int, int, int] | None) -> ColorName:
     if rgb is None:
         return "unknown"
     hue, saturation, value = _rgb_to_hsv_deg(rgb)
@@ -458,7 +471,7 @@ CHAPTER_RE = re.compile(
 )
 
 
-def _extract_chapter_number(filename: str) -> Optional[int]:
+def _extract_chapter_number(filename: str) -> int | None:
     stem = os.path.splitext(os.path.basename(filename))[0]
     match = CHAPTER_RE.search(stem)
     return int(match.group(1)) if match else None
@@ -484,10 +497,10 @@ def ask_user_to_choose_profile() -> str:
         print(f"Veuillez entrer un nombre entre 1 et {len(profile_names)}.")
 
 
-def ask_user_to_choose_pdf(search_dir: str) -> List[str]:
+def ask_user_to_choose_pdf(search_dir: str) -> list[str]:
     try:
         entries = os.listdir(search_dir)
-    except Exception as error:
+    except OSError as error:
         fail(f"Impossible de lister le répertoire '{search_dir}' : {error}")
 
     pdfs = sorted(
@@ -497,7 +510,7 @@ def ask_user_to_choose_pdf(search_dir: str) -> List[str]:
     if not pdfs:
         fail(f"Aucun fichier .pdf trouvé dans : {os.path.abspath(search_dir)}")
 
-    chapter_map: Dict[int, str] = {}
+    chapter_map: dict[int, str] = {}
     for name in pdfs:
         chapter = _extract_chapter_number(name)
         if chapter is None:
@@ -545,7 +558,7 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
 
     try:
         document = pymupdf.open(input_path)
-    except Exception as error:
+    except (OSError, RuntimeError) as error:
         fail(f"Impossible d'ouvrir le PDF : {error}")
     if document.page_count == 0:
         fail("Le PDF est vide.")
@@ -571,15 +584,14 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
         "none": [],
         "unknown": [],
     }
-    per_card: Dict[str, Dict[str, Any]] = {}
+    per_card: dict[str, dict[str, Any]] = {}
 
     card_index = 1
     extension = "webp"
-    front_sizes: set[Tuple[int, int]] = set()
-    back_sizes: set[Tuple[int, int]] = set()
+    front_sizes: set[tuple[int, int]] = set()
+    back_sizes: set[tuple[int, int]] = set()
 
-    save_options = {
-        "format": "WEBP",
+    save_options: WebPSaveOptions = {
         "method": profile.webp_method,
         # La transparence possède son propre réglage pour garder des bords propres
         # sans ralentir inutilement la création des images.
@@ -625,8 +637,8 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
                 output_directory, f"front{card_index}.{extension}"
             )
             back_path = os.path.join(output_directory, f"back{card_index}.{extension}")
-            front_image.save(front_path, **save_options)
-            back_image.save(back_path, **save_options)
+            front_image.save(front_path, format="WEBP", **save_options)
+            back_image.save(back_path, format="WEBP", **save_options)
 
             print(
                 f"  Carte {card_index} enregistrée | bordure={border_color} | timer={timer_color}"
@@ -649,7 +661,7 @@ def process_pdf(input_path: str, profile: ProcessingProfile) -> None:
     total_cards = card_index - 1
     # Le fichier manifest.json résume le résultat pour le site : nombre de cartes, couleurs,
     # noms des images et dimensions communes lorsqu'elles sont toutes identiques.
-    manifest: Dict[str, Any] = {
+    manifest: dict[str, Any] = {
         "chapter": base_name,
         "asset_version": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
         "image_format": extension,
