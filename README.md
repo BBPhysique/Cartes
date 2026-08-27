@@ -1,6 +1,6 @@
 # Cartes
 
-Flashcards CapECL : [capecl.fr/cartes](https://capecl.fr/cartes) · [miroir GitHub](https://bbphysique.github.io/Cartes/)
+Site accessible [ici](https://bbphysique.github.io/Cartes/).
 
 ## Installation
 
