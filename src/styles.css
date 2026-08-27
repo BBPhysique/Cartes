@@ -283,7 +283,7 @@ header {
 
 h1 {
   position: absolute;
-  top: 30%;
+  top: 29%;
   left: 130%;
   font-family: var(--font-family-display);
   font-size: calc(var(--font-size-hero) / 1.5);
