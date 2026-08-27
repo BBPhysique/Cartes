@@ -6,7 +6,6 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
-    <!-- Disable browser auto-translation and support system color scheme -->
     <meta name="google" content="notranslate" />
     <meta http-equiv="Content-Language" content="fr" />
     <meta name="color-scheme" content="light dark" />
@@ -15,7 +14,6 @@
     <meta name="theme-color" content="#0e0e10" media="(prefers-color-scheme: dark)" />
     <title>Flashcards • CapECL</title>
 
-    <!-- Favicons from root -->
     <link rel="icon" type="image/png" href="/favicon-96x96.png?v=20260826" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260826" />
     <link rel="shortcut icon" href="/favicon.ico?v=20260826" />
@@ -36,7 +34,6 @@
       data-website-id="a052a820-83ee-48c6-bf8a-9b3c2b3a8fd3"
     ></script>
 
-    <!-- Vite entry point -->
     <script type="module" src="/src/main.js"></script>
   </head>
   <body>
@@ -144,7 +141,7 @@
 
       <main class="main-content">
         <section class="stage" id="stage" aria-label="Carte mémoire">
-          <!-- Swipe drop zones for mobile revision mode -->
+          <!-- Zones dans lesquelles glisser les cartes du mode révision sur mobile -->
           <div class="swipe-zone swipe-zone-ok" aria-hidden="true">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -278,7 +275,7 @@
                 </svg>
               </button>
 
-              <!-- Révision mode buttons (hidden by default) -->
+              <!-- Bouttons du mode révision (affichés uniquement en mode révision) -->
               <button
                 id="pasOkBtn"
                 class="btn btn-pas-ok"
@@ -454,62 +451,6 @@
           </div>
         </div>
       </main>
-    </div>
-
-    <!-- Welcome modal -->
-    <div id="welcomeModal" class="modal">
-      <div class="modal-content modal-welcome">
-        <div class="modal-version">Flashcards v2.0.0</div>
-        <h2>Deux modes disponibles</h2>
-        <div class="modal-modes">
-          <div class="mode-item">
-            <span class="mode-name">Mode Lecture</span>
-            <span class="mode-desc"
-              >Le mode que vous connaissez déjà pour parcourir les cartes</span
-            >
-          </div>
-          <div class="mode-item mode-new">
-            <span class="mode-name">Mode Révision <span class="badge-new">nouveau</span></span>
-            <span class="mode-desc">Retire tous les filtres et fonctionne comme Quizlet</span>
-          </div>
-        </div>
-        <p class="modal-hint">Passez d'un mode à l'autre via le bouton en haut à droite</p>
-        <button id="dismissWelcomeBtn" class="modal-btn">Compris</button>
-      </div>
-    </div>
-
-    <!-- Révision complete modal -->
-    <div id="revisionCompleteModal" class="modal">
-      <div class="modal-content modal-complete">
-        <div class="complete-checkmark">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="lucide lucide-book-check-icon lucide-book-check"
-          >
-            <path
-              d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
-            />
-            <path d="m9 9.5 2 2 4-4" />
-          </svg>
-        </div>
-        <h2>Chapitre maîtrisé</h2>
-        <p class="complete-stats">
-          <span id="revisionRounds">1</span> tour<span id="revisionRoundsPlural">s</span>
-          complété<span id="revisionRoundsPlural2">s</span>
-        </p>
-        <div class="modal-actions">
-          <button id="restartRevisionBtn" class="modal-btn modal-btn-primary">Recommencer</button>
-          <button id="backToLectureBtn" class="modal-btn modal-btn-ghost">Mode lecture</button>
-        </div>
-      </div>
     </div>
 
     <footer class="footer-section">

@@ -9,7 +9,7 @@ import { qs } from './utils/helpers.js';
 import { discoverChapters, loadChapter } from './features/chapters.js';
 import { getStoredChapter, storeSelectedChapter } from './core/storage.js';
 import { swipeGesture } from './features/swipe.js';
-import { bindUI, checkWelcomeModal, initInfoTooltip, initTouchDetection } from './ui/events.js';
+import { bindUI, initInfoTooltip, initTouchDetection } from './ui/events.js';
 import {
   showSkeleton,
   hideSkeleton,
@@ -45,7 +45,10 @@ function syncChapterSelectWidth(select) {
     parseFloat(styles.borderLeftWidth) +
     parseFloat(styles.borderRightWidth);
 
-  select.style.setProperty('--chapter-select-width', `${Math.ceil(textWidth + horizontalChrome)}px`);
+  select.style.setProperty(
+    '--chapter-select-width',
+    `${Math.ceil(textWidth + horizontalChrome)}px`
+  );
 }
 
 /**
@@ -114,9 +117,6 @@ async function init() {
   const initial = buildChapterSelect(chapters);
   await loadChapter(initial);
   storeSelectedChapter(initial);
-
-  // Check and show welcome modal if needed
-  checkWelcomeModal();
 }
 
 // Start the application

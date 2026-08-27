@@ -102,24 +102,76 @@ export function handleRoundComplete() {
   }
 }
 
+function removeRevisionCompleteModal(modal) {
+  setModalVisibility(modal, false);
+
+  const remove = () => modal.remove();
+  const onTransitionEnd = (event) => {
+    if (event.target === modal && event.propertyName === 'opacity') {
+      remove();
+    }
+  };
+
+  modal.addEventListener('transitionend', onTransitionEnd);
+  window.setTimeout(remove, 300);
+}
+
+function createRevisionCompleteModal() {
+  const modal = document.createElement('div');
+  modal.id = 'revisionCompleteModal';
+  modal.className = 'modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-labelledby', 'revisionCompleteTitle');
+  modal.innerHTML = `
+    <div class="modal-content modal-complete">
+      <div class="complete-checkmark" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="m6 12 4 4 8-8" />
+        </svg>
+      </div>
+      <h2 id="revisionCompleteTitle">Chapitre maîtrisé</h2>
+      <p class="complete-stats"></p>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-primary">Recommencer</button>
+        <button type="button" class="modal-btn modal-btn-ghost">Mode lecture</button>
+      </div>
+    </div>
+  `;
+
+  const restartButton = modal.querySelector('.modal-btn-primary');
+  const lectureButton = modal.querySelector('.modal-btn-ghost');
+
+  restartButton.addEventListener('click', () => {
+    restartRevisionSession();
+    removeRevisionCompleteModal(modal);
+  });
+  lectureButton.addEventListener('click', () => {
+    removeRevisionCompleteModal(modal);
+    toggleRevisionMode();
+  });
+
+  document.body.appendChild(modal);
+  return modal;
+}
+
 /**
  * Show the revision complete modal
  */
 export function showRevisionComplete() {
-  const modal = qs('#revisionCompleteModal');
-  if (modal) {
-    const roundsEl = qs('#revisionRounds');
-    const pluralEl = qs('#revisionRoundsPlural');
-    const pluralCompleteEl = qs('#revisionRoundsPlural2');
-    if (roundsEl) roundsEl.textContent = state.revisionRound.toString();
-    if (pluralEl) {
-      pluralEl.textContent = state.revisionRound > 1 ? 's' : '';
-    }
-    if (pluralCompleteEl) {
-      pluralCompleteEl.textContent = state.revisionRound > 1 ? 's' : '';
-    }
-    setModalVisibility(modal, true);
-  }
+  if (!state.revisionMode || state.revisionIncorrect.size > 0 || !checkRoundComplete()) return;
+
+  const modal = qs('#revisionCompleteModal') ?? createRevisionCompleteModal();
+  const stats = modal.querySelector('.complete-stats');
+  const plural = state.revisionRound > 1 ? 's' : '';
+  stats.textContent = `${state.revisionRound} tour${plural} complété${plural}`;
+
+  // Ensure the initial hidden style is painted before starting the entrance transition.
+  void modal.offsetWidth;
+  setModalVisibility(modal, true);
+  modal.querySelector('.modal-btn-primary').focus();
 }
 
 /**

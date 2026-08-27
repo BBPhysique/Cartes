@@ -5,7 +5,6 @@
 import { state, getCurrentCard } from '../state.js';
 import { qs } from '../utils/helpers.js';
 import { UMAMI_EVENTS, trackUmamiEvent } from '../utils/analytics.js';
-import { WELCOME_MODAL_ENABLED, WELCOME_MODAL_VERSION } from '../config.js';
 import { toggleFavourite } from '../core/storage.js';
 import { nextCard, prevCard, toggleShuffle, toggleFavouritesOnly } from '../features/navigation.js';
 import {
@@ -17,7 +16,6 @@ import {
 import { swipeGesture } from '../features/swipe.js';
 import {
   setFlipped,
-  setModalVisibility,
   cycleTimer,
   cycleDifficulty,
   updateBookmarkButton,
@@ -83,30 +81,6 @@ export function bindUI() {
         mode: state.revisionMode ? 'revision' : 'lecture',
       });
     });
-  }
-
-  // Revision complete modal buttons
-  const restartRevisionBtn = qs('#restartRevisionBtn');
-  const backToLectureBtn = qs('#backToLectureBtn');
-  if (restartRevisionBtn) {
-    restartRevisionBtn.addEventListener('click', () => {
-      restartRevisionSession();
-      const modal = qs('#revisionCompleteModal');
-      setModalVisibility(modal, false);
-    });
-  }
-  if (backToLectureBtn) {
-    backToLectureBtn.addEventListener('click', () => {
-      const modal = qs('#revisionCompleteModal');
-      setModalVisibility(modal, false);
-      toggleRevisionMode();
-    });
-  }
-
-  // Welcome modal dismiss button
-  const dismissWelcomeBtn = qs('#dismissWelcomeBtn');
-  if (dismissWelcomeBtn) {
-    dismissWelcomeBtn.addEventListener('click', dismissWelcomeModal);
   }
 
   // Inline restart button
@@ -251,29 +225,6 @@ export function bindUI() {
       }
     }
   });
-}
-
-// ==================== Welcome Modal ====================
-
-export function checkWelcomeModal() {
-  if (!WELCOME_MODAL_ENABLED) return;
-  const seenVersion = localStorage.getItem('fc_welcome_modal_version');
-  if (seenVersion !== WELCOME_MODAL_VERSION) {
-    showWelcomeModal();
-  }
-}
-
-export function showWelcomeModal() {
-  const modal = qs('#welcomeModal');
-  setModalVisibility(modal, true);
-}
-
-export function dismissWelcomeModal() {
-  const modal = qs('#welcomeModal');
-  if (modal) {
-    setModalVisibility(modal, false);
-    localStorage.setItem('fc_welcome_modal_version', WELCOME_MODAL_VERSION);
-  }
 }
 
 // ==================== Info Tooltip ====================
