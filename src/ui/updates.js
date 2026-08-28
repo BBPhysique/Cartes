@@ -43,12 +43,40 @@ export function setModalVisibility(modal, shouldShow) {
 
 export function showSkeleton() {
   const skeleton = qs('#skeleton');
+  const stage = qs('#stage');
+  const cardShell = qs('#cardShell');
+  skeleton.classList.remove('empty');
   skeleton.classList.add('visible');
+  skeleton.setAttribute('aria-hidden', 'true');
+  stage?.classList.remove('is-empty');
+  cardShell?.removeAttribute('aria-hidden');
+  qs('#card3d')?.setAttribute('tabindex', '0');
 }
 
 export function hideSkeleton() {
   const skeleton = qs('#skeleton');
-  skeleton.classList.remove('visible');
+  skeleton.classList.remove('visible', 'empty');
+  skeleton.setAttribute('aria-hidden', 'true');
+  qs('#stage')?.classList.remove('is-empty');
+  qs('#cardShell')?.removeAttribute('aria-hidden');
+  qs('#card3d')?.setAttribute('tabindex', '0');
+}
+
+export function showEmptyState(message = 'Pas de résultat') {
+  const skeleton = qs('#skeleton');
+  const messageEl = qs('#emptyStateMessage');
+  const cardShell = qs('#cardShell');
+
+  resetCardFlip();
+  if (messageEl) messageEl.textContent = message;
+  qs('#stage')?.classList.add('is-empty');
+  skeleton.classList.add('visible', 'empty');
+  skeleton.setAttribute('aria-hidden', 'false');
+  cardShell?.setAttribute('aria-hidden', 'true');
+  qs('#card3d')?.setAttribute('tabindex', '-1');
+  qs('#counter').textContent = '0 résultat';
+  updateBookmarkButton();
+  updateNavButtons();
 }
 
 // ==================== Stage Sizing ====================
@@ -69,13 +97,27 @@ export function sizeStageForImage(naturalW, naturalH) {
 
 // ==================== Card Display ====================
 
+const FLIP_DURATION_MS = 640;
+let activeFlipAnimation = null;
 let activeFlipCleanup = null;
 
 function clearFlipTransition() {
   if (activeFlipCleanup) activeFlipCleanup();
+  if (!activeFlipAnimation) return;
+
+  const animation = activeFlipAnimation;
+  activeFlipAnimation = null;
+  animation.onfinish = null;
+  animation.oncancel = null;
+  animation.cancel();
+
+  const card3d = qs('#card3d');
+  card3d?.classList.remove('flipping', 'flip-animated');
+  qs('#cardShell')?.classList.remove('is-flipping');
 }
 
 export function setFlipped(on) {
+  if (!getCurrentCard()) return;
   if (state.flipped === on) return;
 
   state.flipped = on;
@@ -86,9 +128,43 @@ export function setFlipped(on) {
   const card3d = qs('#card3d');
   const cardShell = qs('#cardShell');
 
+  if (activeFlipAnimation) {
+    card3d.classList.toggle('flipped', on);
+    card3d.setAttribute('aria-pressed', String(on));
+    activeFlipAnimation.reverse();
+    return;
+  }
+
   clearFlipTransition();
   card3d.classList.add('flipping');
   cardShell.classList.add('is-flipping');
+
+  if (typeof card3d.animate === 'function') {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    card3d.classList.add('flip-animated');
+    card3d.classList.toggle('flipped', on);
+    card3d.setAttribute('aria-pressed', String(on));
+
+    const animation = card3d.animate(
+      [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(180deg)' }],
+      {
+        duration: reduceMotion ? 1 : FLIP_DURATION_MS,
+        easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+        direction: on ? 'normal' : 'reverse',
+        fill: 'both',
+      }
+    );
+    activeFlipAnimation = animation;
+    animation.onfinish = () => {
+      if (activeFlipAnimation !== animation) return;
+      activeFlipAnimation = null;
+      animation.onfinish = null;
+      animation.cancel();
+      card3d.classList.remove('flipping', 'flip-animated');
+      cardShell.classList.remove('is-flipping');
+    };
+    return;
+  }
 
   const cleanup = () => {
     if (activeFlipCleanup !== cleanup) return;
@@ -143,7 +219,7 @@ export async function showCurrent(direction = 'none', options = {}) {
   const chapterSelect = qs('#chapterSelect');
 
   const isFirstLoad = !state.imagesLoaded.has(n);
-  if (isFirstLoad) {
+  if (isFirstLoad || qs('#stage')?.classList.contains('is-empty')) {
     showSkeleton();
   }
 
@@ -304,6 +380,7 @@ export function updateBookmarkButton() {
   const btn = qs('#bookmarkBtn');
   if (!btn) return;
   const currentCard = getCurrentCard();
+  btn.disabled = !currentCard;
   const favourites = loadFavourites();
   const isFavourite = favourites.has(currentCard);
   btn.classList.toggle('active', isFavourite);
@@ -326,14 +403,17 @@ export function updateFavouritesCount() {
 export function updateNavButtons() {
   const prev = qs('#prevBtn');
   const next = qs('#nextBtn');
+  const cannotBrowse = state.deck.length <= 1;
 
-  if (state.shuffle) {
+  if (cannotBrowse) {
+    if (prev) prev.disabled = true;
+  } else if (state.shuffle) {
     if (prev) prev.disabled = state.historyIndex <= 0;
   } else {
     if (prev) prev.disabled = false;
   }
 
-  if (next) next.disabled = state.deck.length === 0;
+  if (next) next.disabled = cannotBrowse;
 }
 
 // ==================== Mode/Filter UI ====================
@@ -444,9 +524,7 @@ export function cycleTimer() {
   const keep = getCurrentCard();
   rebuildDeck(keep);
   if (!state.deck.length) {
-    qs('#counter').textContent = 'Aucune carte disponible pour ce filtre.';
-    hideSkeleton();
-    updateNavButtons();
+    showEmptyState();
     return;
   }
   showCurrent();
@@ -467,9 +545,7 @@ export function cycleDifficulty() {
   const keep = getCurrentCard();
   rebuildDeck(keep);
   if (!state.deck.length) {
-    qs('#counter').textContent = 'Aucune carte disponible pour ce filtre.';
-    hideSkeleton();
-    updateNavButtons();
+    showEmptyState();
     return;
   }
   showCurrent();

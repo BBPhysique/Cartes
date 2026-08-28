@@ -38,7 +38,7 @@ export function resetRevisionProgress() {
  * Reset shuffle state for revision mode
  * @param {number|null} preferredCard
  */
-export function resetShuffleForRevision(preferredCard = null) {
+function resetShuffleForRevision(preferredCard = null) {
   const currentDeck = getCurrentRevisionDeck();
   state.unvisited = new Set(currentDeck);
   state.history = [];
@@ -75,7 +75,7 @@ export function checkRoundComplete() {
 /**
  * Start a new revision round with incorrect cards
  */
-export function startNewRevisionRound() {
+function startNewRevisionRound() {
   state.revisionRound++;
   state.revisionSeen = new Set();
 
@@ -160,7 +160,7 @@ function createRevisionCompleteModal() {
 /**
  * Show the revision complete modal
  */
-export function showRevisionComplete() {
+function showRevisionComplete() {
   if (!state.revisionMode || state.revisionIncorrect.size > 0 || !checkRoundComplete()) return;
 
   const modal = qs('#revisionCompleteModal') ?? createRevisionCompleteModal();
@@ -177,7 +177,7 @@ export function showRevisionComplete() {
 /**
  * Navigate to the next unseen card in revision mode
  */
-export function nextRevisionCard() {
+function nextRevisionCard() {
   if (!state.deck.length) return;
 
   const unseenCards = state.deck.filter((card) => !state.revisionSeen.has(card));
@@ -208,7 +208,7 @@ export function nextRevisionCard() {
 /**
  * Show current card with scale-in animation
  */
-export async function showCurrentWithScaleIn() {
+async function showCurrentWithScaleIn() {
   const cardShell = qs('#cardShell');
   if (!cardShell) {
     showCurrent();
@@ -241,7 +241,7 @@ export async function showCurrentWithScaleIn() {
  * @param {string} direction
  * @param {Function} callback
  */
-export async function swipeCard(direction, callback) {
+async function swipeCard(direction, callback) {
   const cardShell = qs('#cardShell');
   if (!cardShell) return;
 

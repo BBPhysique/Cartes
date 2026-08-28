@@ -27,7 +27,7 @@ export function storeSelectedChapter(chapter) {
 
 // ==================== Favourites ====================
 
-export function getFavouritesKey() {
+function getFavouritesKey() {
   return `fc_favourites_ch${state.chapter}`;
 }
 
@@ -49,7 +49,7 @@ export function loadFavourites() {
   }
 }
 
-export function saveFavourites(favourites) {
+function saveFavourites(favourites) {
   const key = getFavouritesKey();
   localStorage.setItem(key, JSON.stringify(Array.from(favourites)));
 }
@@ -67,7 +67,7 @@ export function toggleFavourite(cardNo) {
 
 // ==================== History ====================
 
-export function getHistoryKey() {
+function getHistoryKey() {
   return `fc_history_ch${state.chapter}`;
 }
 
@@ -102,7 +102,7 @@ export function clearHistory() {
 
 // ==================== Revision Progress ====================
 
-export function getRevisionKey() {
+function getRevisionKey() {
   return `fc_revision_ch${state.chapter}`;
 }
 

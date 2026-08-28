@@ -363,7 +363,7 @@ export function initInfoTooltip() {
 export function initTouchDetection() {
   try {
     const isTouch =
-      'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
+      'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (!isTouch) return;
 
     document.documentElement.classList.add('is-touch');
@@ -374,7 +374,7 @@ export function initTouchDetection() {
     const clearTouchFocusedControl = () => {
       const activeElement = document.activeElement;
       if (!(activeElement instanceof HTMLElement)) return;
-      if (!activeElement.matches('button, [role="button"]')) return;
+      if (!activeElement.matches('button, [role="button"], [role="switch"], a[href]')) return;
       activeElement.blur();
     };
 

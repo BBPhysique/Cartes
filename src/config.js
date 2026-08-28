@@ -2,7 +2,6 @@
  * Application configuration constants
  */
 
-export const CHAPTERS_MANUAL = [];
 export const CHAPTER_PREFIX = 'ch';
 export const CHAPTER_SUFFIX = '_cartes';
 export const MAX_CHAPTERS_PROBE = 20;

@@ -8,7 +8,7 @@ import { IMAGE_FORMATS } from '../config.js';
 // Caches
 const imageCache = new Map();
 const loadingImages = new Map();
-export const manifestCache = new Map();
+const manifestCache = new Map();
 const manifestFetches = new Map();
 const formatCacheByBase = new Map();
 const assetVersionByBase = new Map();
@@ -20,7 +20,7 @@ const imageFormatCache = new Map();
  * @param {boolean} useCache
  * @returns {Promise<{ok: boolean, width?: number, height?: number, src: string}>}
  */
-export function loadImage(url, useCache = true) {
+function loadImage(url, useCache = true) {
   if (useCache && imageCache.has(url)) {
     return Promise.resolve(imageCache.get(url));
   }
@@ -59,7 +59,7 @@ export function loadImage(url, useCache = true) {
  * @param {string} url
  * @returns {Promise}
  */
-export function probeImage(url) {
+function probeImage(url) {
   const sep = url.includes('?') ? '&' : '?';
   return loadImage(`${url}${sep}probe=${Date.now()}`, false);
 }
@@ -84,23 +84,8 @@ function normalizeExt(ext) {
 
 function deriveAssetVersion(manifest) {
   if (!manifest || typeof manifest !== 'object') return null;
-  const candidates = [
-    manifest.asset_version,
-    manifest.assetVersion,
-    manifest.cache_bust,
-    manifest.cacheBust,
-    manifest.version,
-    manifest.generated_at,
-    manifest.generatedAt,
-    manifest.updated_at,
-    manifest.updatedAt,
-  ];
-  for (const candidate of candidates) {
-    if (candidate === null || candidate === undefined) continue;
-    const str = String(candidate).trim();
-    if (str) return str;
-  }
-  return null;
+  const version = String(manifest.asset_version ?? '').trim();
+  return version || null;
 }
 
 export function registerAssetVersion(basePath, manifest) {
@@ -114,7 +99,7 @@ export function registerAssetVersion(basePath, manifest) {
   return version;
 }
 
-export function getAssetVersion(basePath = state.basePath) {
+function getAssetVersion(basePath = state.basePath) {
   if (!basePath) return null;
   if (basePath === state.basePath && state.assetVersion) {
     return state.assetVersion;
@@ -126,35 +111,8 @@ export function getAssetVersion(basePath = state.basePath) {
 
 function deriveFormatsFromManifest(manifest) {
   if (!manifest || typeof manifest !== 'object') return null;
-  const formats = {};
-  const imgFormats = manifest.image_formats || manifest.formats;
-  if (imgFormats && typeof imgFormats === 'object') {
-    if (imgFormats.front) formats.front = normalizeExt(imgFormats.front);
-    if (imgFormats.back) formats.back = normalizeExt(imgFormats.back);
-    if (imgFormats.default) formats.default = normalizeExt(imgFormats.default);
-  }
-  if (manifest.image_format) {
-    const ext = normalizeExt(manifest.image_format);
-    if (ext) {
-      if (!formats.front) formats.front = ext;
-      if (!formats.back) formats.back = ext;
-      if (!formats.default) formats.default = ext;
-    }
-  }
-  const keys = Object.keys(formats);
-  if (!keys.length) return null;
-  if (!formats.default) {
-    if (formats.front && formats.back && formats.front === formats.back) {
-      formats.default = formats.front;
-    } else if (formats.front) {
-      formats.default = formats.front;
-    } else if (formats.back) {
-      formats.default = formats.back;
-    }
-  }
-  if (!formats.front && formats.default) formats.front = formats.default;
-  if (!formats.back && formats.default) formats.back = formats.default;
-  return formats;
+  const format = normalizeExt(manifest.image_format);
+  return format ? { front: format, back: format, default: format } : null;
 }
 
 export function cacheFormatsForBase(basePath, manifest) {
@@ -228,7 +186,7 @@ export async function fetchManifest(basePath, { forceReload = false } = {}) {
 
 // ==================== Card Image Loading ====================
 
-export async function loadCardImage(prefix, n, options = {}) {
+async function loadCardImage(prefix, n, options = {}) {
   const { basePath = state.basePath, probe = false, useCache = true } = options;
 
   if (!basePath) {

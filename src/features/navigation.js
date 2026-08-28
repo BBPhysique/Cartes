@@ -4,14 +4,13 @@
 
 import { state, getCurrentCard } from '../state.js';
 import { MAX_HISTORY, FAST_NAV_THRESHOLD, FAST_NAV_WINDOW_MS } from '../config.js';
-import { shuffleArray, asPositiveInt, nowMs, qs } from '../utils/helpers.js';
+import { shuffleArray, asPositiveInt, nowMs } from '../utils/helpers.js';
 import { loadFavourites, saveHistory, clearHistory, loadHistory } from '../core/storage.js';
 import {
   showCurrent,
-  updateNavButtons,
   updateShuffleUI,
   updateFavouritesUI,
-  hideSkeleton,
+  showEmptyState,
 } from '../ui/updates.js';
 
 // ==================== Fast Navigation ====================
@@ -211,7 +210,7 @@ export function rebuildDeck(keepCardNo = null) {
 
 export function nextCard(options = {}) {
   const { queued = false } = options;
-  if (!state.deck.length) return;
+  if (state.deck.length <= 1) return;
 
   if (!queued && !state.revisionMode) {
     recordFastNavBurst();
@@ -271,7 +270,7 @@ export function nextCard(options = {}) {
 
 export function prevCard(options = {}) {
   const { queued = false } = options;
-  if (!state.deck.length) return;
+  if (state.deck.length <= 1) return;
 
   const canNavigate = state.shuffle ? state.historyIndex > 0 : true;
   if (!canNavigate) return;
@@ -372,9 +371,7 @@ export async function toggleFavouritesOnly() {
   updateShuffleUI();
 
   if (!state.deck.length) {
-    qs('#counter').textContent = 'Aucun favori disponible.';
-    hideSkeleton();
-    updateNavButtons();
+    showEmptyState();
     return;
   }
   showCurrent();

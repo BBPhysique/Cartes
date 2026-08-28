@@ -10,7 +10,7 @@ import { loadFrontImage, loadBackImage } from './image-loader.js';
  * Queue a card for preloading
  * @param {number} cardNo
  */
-export function queuePreload(cardNo) {
+function queuePreload(cardNo) {
   if (!cardNo) return;
   if (state.imagesLoaded.has(cardNo)) return;
   if (state.preloading.has(cardNo)) return;

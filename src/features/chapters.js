@@ -3,13 +3,7 @@
  */
 
 import { state } from '../state.js';
-import {
-  CHAPTERS_MANUAL,
-  CHAPTER_PREFIX,
-  CHAPTER_SUFFIX,
-  MAX_CHAPTERS_PROBE,
-  MAX_PROBE,
-} from '../config.js';
+import { CHAPTER_PREFIX, CHAPTER_SUFFIX, MAX_CHAPTERS_PROBE, MAX_PROBE } from '../config.js';
 import {
   fetchManifest,
   loadFrontImage,
@@ -36,7 +30,6 @@ import { resetFastNavState, ensureShuffleQueue } from './navigation.js';
  * @returns {Promise<number[]>}
  */
 export async function discoverChapters() {
-  if (CHAPTERS_MANUAL.length) return CHAPTERS_MANUAL.slice();
   const found = [];
 
   const batchSize = 5;
@@ -67,7 +60,7 @@ export async function discoverChapters() {
  * Apply chapter settings to state
  * @param {number} n
  */
-export function applyChapter(n) {
+function applyChapter(n) {
   state.chapter = n;
   state.basePath = `flashcards/${CHAPTER_PREFIX}${n}${CHAPTER_SUFFIX}`;
   state.formats = getFormatsForBase(state.basePath) || null;
@@ -79,7 +72,7 @@ export function applyChapter(n) {
  * @param {Object} manifest
  * @returns {{total: number, hasSizes: boolean, defaultSize: Object|null}}
  */
-export function applyManifestMetadata(manifest) {
+function applyManifestMetadata(manifest) {
   const info = { total: 0, hasSizes: false, defaultSize: null };
   if (!manifest || typeof manifest !== 'object') return info;
 
@@ -140,7 +133,7 @@ export function applyManifestMetadata(manifest) {
  * @param {Object} options
  * @returns {Promise<{manifest: Object|null, info: Object}>}
  */
-export async function loadManifest(options = {}) {
+async function loadManifest(options = {}) {
   state.manifest = null;
   if (!state.basePath) {
     state.formats = null;
@@ -167,7 +160,7 @@ export async function loadManifest(options = {}) {
  * Discover card pairs using binary search
  * @returns {Promise<number>}
  */
-export async function discoverPairs() {
+async function discoverPairs() {
   let left = 1,
     right = MAX_PROBE,
     lastValid = 0;
@@ -208,7 +201,7 @@ export async function discoverPairs() {
  * Ensure all card sizes are loaded
  * @param {number} total
  */
-export async function ensureCardSizes(total) {
+async function ensureCardSizes(total) {
   if (!total) return;
   const pending = [];
   for (let k = 1; k <= total; k++) {
