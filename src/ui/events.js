@@ -22,209 +22,136 @@ import {
   updateFavouritesCount,
 } from './updates.js';
 
+const ACTIVATION_KEYS = new Set(['Enter', ' ']);
+const FORM_CONTROLS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON']);
+
+function currentMode() {
+  return state.revisionMode ? 'revision' : 'lecture';
+}
+
+function bindClick(selector, handler) {
+  qs(selector)?.addEventListener('click', handler);
+}
+
+function bindPressable(element, activate) {
+  if (!element) return;
+  element.addEventListener('click', activate);
+  element.addEventListener('keydown', (event) => {
+    if (!ACTIVATION_KEYS.has(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    activate();
+  });
+}
+
+function bindTrackedToggle({ selector, eventName, readValue, toggle, disabled = () => false }) {
+  const element = qs(selector);
+  bindPressable(element, () => {
+    if (disabled() || element.classList.contains('disabled')) return;
+    const previousValue = readValue();
+    toggle();
+    const enabled = readValue();
+    if (enabled !== previousValue) {
+      trackUmamiEvent(eventName, { enabled, mode: currentMode() });
+    }
+  });
+}
+
+function bindFilter(selector, cycle) {
+  const filter = qs(selector);
+  if (!filter) return;
+
+  bindPressable(filter, cycle);
+  filter.closest('.filter-group')?.addEventListener('click', (event) => {
+    if (!filter.contains(event.target)) cycle();
+  });
+}
+
+function toggleCurrentFavourite() {
+  const currentCard = getCurrentCard();
+  if (!currentCard) return;
+  toggleFavourite(currentCard);
+  updateBookmarkButton();
+  updateFavouritesCount();
+}
+
+function flipCurrentCard() {
+  if (!state.isTransitioning) setFlipped(!state.flipped);
+}
+
+function handleKeyboardShortcut(event) {
+  if (event.target && FORM_CONTROLS.has(event.target.tagName)) return;
+
+  if (event.key === ' ') {
+    event.preventDefault();
+    flipCurrentCard();
+    return;
+  }
+
+  if (event.key === 'ArrowRight') {
+    state.revisionMode ? markCardOK() : nextCard();
+    return;
+  }
+  if (event.key === 'ArrowLeft') {
+    state.revisionMode ? markCardPasOK() : prevCard();
+    return;
+  }
+  if (state.revisionMode || event.ctrlKey || event.metaKey) return;
+
+  const key = event.key.toLowerCase();
+  if (key === 'r' && !state.showFavouritesOnly) toggleShuffle();
+  else if (key === 'f') toggleFavouritesOnly();
+  else if (key === 'b') toggleCurrentFavourite();
+}
+
 /**
- * Bind all UI event listeners
+ * Bind all UI event listeners.
  */
 export function bindUI() {
-  const shell = qs('#cardShell');
+  const siteLogo = qs('.site-logo');
+  if (siteLogo) {
+    siteLogo.href = window.location.href;
+    siteLogo.addEventListener('click', () => {
+      localStorage.setItem('fc_revision_mode', 'false');
+    });
+  }
 
-  // Card click to flip
-  shell.addEventListener('click', () => {
-    // Don't flip if we were swiping
-    if (swipeGesture && swipeGesture.hasMovedHorizontally) return;
-    if (!state.isTransitioning) {
-      setFlipped(!state.flipped);
-    }
+  bindClick('#cardShell', () => {
+    if (!swipeGesture.hasMovedHorizontally) flipCurrentCard();
+  });
+  bindClick('#bookmarkBtn', toggleCurrentFavourite);
+  bindClick('#prevBtn', prevCard);
+  bindClick('#nextBtn', () => {
+    trackUmamiEvent(UMAMI_EVENTS.nextButton, { mode: currentMode() });
+    nextCard();
+  });
+  bindClick('#pasOkBtn', markCardPasOK);
+  bindClick('#okBtn', markCardOK);
+  bindClick('#modeToggle', () => {
+    toggleRevisionMode();
+    trackUmamiEvent(UMAMI_EVENTS.modeToggle, { mode: currentMode() });
+  });
+  bindClick('#restartRevisionInlineBtn', () => {
+    if (confirm('Recommencer la révision depuis le début ?')) restartRevisionSession();
   });
 
-  // Bookmark button
-  const bookmarkBtn = qs('#bookmarkBtn');
-  if (bookmarkBtn) {
-    bookmarkBtn.addEventListener('click', () => {
-      const currentCard = getCurrentCard();
-      if (currentCard) {
-        toggleFavourite(currentCard);
-        updateBookmarkButton();
-        updateFavouritesCount();
-      }
-    });
-  }
-
-  // Navigation buttons
-  const nextBtn = qs('#nextBtn');
-  if (nextBtn) {
-    nextBtn.addEventListener('click', () => {
-      trackUmamiEvent(UMAMI_EVENTS.nextButton, {
-        mode: state.revisionMode ? 'revision' : 'lecture',
-      });
-      nextCard();
-    });
-  }
-  qs('#prevBtn').addEventListener('click', prevCard);
-
-  // Revision mode buttons
-  const pasOkBtn = qs('#pasOkBtn');
-  const okBtn = qs('#okBtn');
-  if (pasOkBtn) {
-    pasOkBtn.addEventListener('click', markCardPasOK);
-  }
-  if (okBtn) {
-    okBtn.addEventListener('click', markCardOK);
-  }
-
-  // Mode toggle
-  const modeToggle = qs('#modeToggle');
-  if (modeToggle) {
-    modeToggle.addEventListener('click', () => {
-      toggleRevisionMode();
-      trackUmamiEvent(UMAMI_EVENTS.modeToggle, {
-        mode: state.revisionMode ? 'revision' : 'lecture',
-      });
-    });
-  }
-
-  // Inline restart button
-  const restartRevisionInlineBtn = qs('#restartRevisionInlineBtn');
-  if (restartRevisionInlineBtn) {
-    restartRevisionInlineBtn.addEventListener('click', () => {
-      if (confirm('Recommencer la révision depuis le début ?')) {
-        restartRevisionSession();
-      }
-    });
-  }
-
-  // Random toggle
-  const randomToggle = qs('#randomToggle');
-  if (randomToggle) {
-    randomToggle.addEventListener('click', () => {
-      if (randomToggle.classList.contains('disabled')) return;
-      const wasShuffle = state.shuffle;
-      toggleShuffle();
-      if (state.shuffle !== wasShuffle) {
-        trackUmamiEvent(UMAMI_EVENTS.randomToggle, {
-          enabled: state.shuffle,
-          mode: state.revisionMode ? 'revision' : 'lecture',
-        });
-      }
-    });
-    randomToggle.addEventListener('keydown', (e) => {
-      if (randomToggle.classList.contains('disabled')) return;
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        const wasShuffle = state.shuffle;
-        toggleShuffle();
-        if (state.shuffle !== wasShuffle) {
-          trackUmamiEvent(UMAMI_EVENTS.randomToggle, {
-            enabled: state.shuffle,
-            mode: state.revisionMode ? 'revision' : 'lecture',
-          });
-        }
-      }
-    });
-  }
-
-  // Favourites toggle
-  const favouritesToggle = qs('#favouritesToggle');
-  if (favouritesToggle) {
-    favouritesToggle.addEventListener('click', () => {
-      const wasFavouritesOnly = state.showFavouritesOnly;
-      toggleFavouritesOnly();
-      if (state.showFavouritesOnly !== wasFavouritesOnly) {
-        trackUmamiEvent(UMAMI_EVENTS.favouritesToggle, {
-          enabled: state.showFavouritesOnly,
-          mode: state.revisionMode ? 'revision' : 'lecture',
-        });
-      }
-    });
-    favouritesToggle.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        const wasFavouritesOnly = state.showFavouritesOnly;
-        toggleFavouritesOnly();
-        if (state.showFavouritesOnly !== wasFavouritesOnly) {
-          trackUmamiEvent(UMAMI_EVENTS.favouritesToggle, {
-            enabled: state.showFavouritesOnly,
-            mode: state.revisionMode ? 'revision' : 'lecture',
-          });
-        }
-      }
-    });
-  }
-
-  // Timer filter
-  const timerFilter = qs('#timerFilter');
-  timerFilter.addEventListener('click', cycleTimer);
-  const timerGroup = timerFilter ? timerFilter.closest('.filter-group') : null;
-  if (timerGroup) {
-    timerGroup.addEventListener('click', (e) => {
-      if (timerFilter.contains(e.target)) return;
-      cycleTimer();
-    });
-  }
-  timerFilter.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      cycleTimer();
-    }
+  bindTrackedToggle({
+    selector: '#randomToggle',
+    eventName: UMAMI_EVENTS.randomToggle,
+    readValue: () => state.shuffle,
+    toggle: toggleShuffle,
+    disabled: () => state.showFavouritesOnly || state.revisionMode,
   });
-
-  // Difficulty filter
-  const diffFilter = qs('#difficultyFilter');
-  diffFilter.addEventListener('click', cycleDifficulty);
-  const diffGroup = diffFilter ? diffFilter.closest('.filter-group') : null;
-  if (diffGroup) {
-    diffGroup.addEventListener('click', (e) => {
-      if (diffFilter.contains(e.target)) return;
-      cycleDifficulty();
-    });
-  }
-  diffFilter.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      cycleDifficulty();
-    }
+  bindTrackedToggle({
+    selector: '#favouritesToggle',
+    eventName: UMAMI_EVENTS.favouritesToggle,
+    readValue: () => state.showFavouritesOnly,
+    toggle: toggleFavouritesOnly,
+    disabled: () => state.revisionMode,
   });
-
-  // Keyboard shortcuts
-  window.addEventListener('keydown', (e) => {
-    if (e.target && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(e.target.tagName)) return;
-
-    if (state.revisionMode) {
-      if (e.key === 'ArrowLeft') markCardPasOK();
-      else if (e.key === 'ArrowRight') markCardOK();
-      else if (e.key === ' ') {
-        e.preventDefault();
-        if (!state.isTransitioning) {
-          setFlipped(!state.flipped);
-        }
-      }
-    } else {
-      if (e.key === 'ArrowRight') nextCard();
-      else if (e.key === 'ArrowLeft') prevCard();
-      else if (e.key === ' ') {
-        e.preventDefault();
-        if (!state.isTransitioning) {
-          setFlipped(!state.flipped);
-        }
-      } else if (
-        e.key.toLowerCase() === 'r' &&
-        !e.ctrlKey &&
-        !e.metaKey &&
-        !state.showFavouritesOnly
-      ) {
-        toggleShuffle();
-      } else if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey) {
-        toggleFavouritesOnly();
-      } else if (e.key.toLowerCase() === 'b' && !e.ctrlKey && !e.metaKey) {
-        const currentCard = getCurrentCard();
-        if (currentCard) {
-          toggleFavourite(currentCard);
-          updateBookmarkButton();
-          updateFavouritesCount();
-        }
-      }
-    }
-  });
+  bindFilter('#timerFilter', cycleTimer);
+  bindFilter('#difficultyFilter', cycleDifficulty);
+  window.addEventListener('keydown', handleKeyboardShortcut);
 }
 
 // ==================== Info Tooltip ====================
@@ -362,8 +289,7 @@ export function initInfoTooltip() {
 
 export function initTouchDetection() {
   try {
-    const isTouch =
-      'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (!isTouch) return;
 
     document.documentElement.classList.add('is-touch');

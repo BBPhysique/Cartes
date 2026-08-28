@@ -5,12 +5,10 @@
 export const CHAPTER_PREFIX = 'ch';
 export const CHAPTER_SUFFIX = '_cartes';
 export const MAX_CHAPTERS_PROBE = 20;
-export const MAX_PROBE = 100;
 export const PRELOAD_RADIUS = 2;
 export const MAX_HISTORY = 5;
 export const FAST_NAV_THRESHOLD = 2;
 export const FAST_NAV_WINDOW_MS = 450;
-export const IMAGE_FORMATS = ['webp', 'png'];
 export const LAST_CARD_KEY_PREFIX = 'fc_last_card_';
 export const LAST_CHAPTER_KEY = 'fc_last_chapter';
 

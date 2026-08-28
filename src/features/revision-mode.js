@@ -4,8 +4,7 @@
 
 import { state, getCurrentCard, getCurrentRevisionDeck } from '../state.js';
 import { MAX_HISTORY } from '../config.js';
-import { qs } from '../utils/helpers.js';
-import { shuffleArray } from '../utils/helpers.js';
+import { qs, shuffleArray } from '../utils/helpers.js';
 import {
   saveRevisionProgress,
   loadRevisionProgress,
@@ -20,8 +19,8 @@ import {
   updateFavouritesUI,
   updateCounter,
   setModalVisibility,
+  exitCurrentCard,
 } from '../ui/updates.js';
-import { resetSwipeTransform } from '../ui/card-motion.js';
 
 /**
  * Reset revision progress to initial state
@@ -175,17 +174,15 @@ function showRevisionComplete() {
 }
 
 /**
- * Navigate to the next unseen card in revision mode
+ * Select the next unseen card in revision mode.
+ * Rendering is handled by the shared card transition.
+ * @returns {boolean}
  */
 function nextRevisionCard() {
-  if (!state.deck.length) return;
+  if (!state.deck.length) return false;
 
   const unseenCards = state.deck.filter((card) => !state.revisionSeen.has(card));
-
-  if (unseenCards.length === 0) {
-    handleRoundComplete();
-    return;
-  }
+  if (unseenCards.length === 0) return false;
 
   const randomIndex = Math.floor(Math.random() * unseenCards.length);
   const nextCardNo = unseenCards[randomIndex];
@@ -200,116 +197,55 @@ function nextRevisionCard() {
 
   state.unvisited.delete(nextCardNo);
   saveHistory();
-
-  showCurrentWithScaleIn();
-  updateCounter();
+  return true;
 }
 
 /**
- * Show current card with scale-in animation
+ * Record a revision answer and run the shared card transition.
+ * @param {'ok'|'review'} result
+ * @param {{gestureStarted?: boolean}} options
+ * @returns {Promise<boolean>}
  */
-async function showCurrentWithScaleIn() {
-  const cardShell = qs('#cardShell');
-  if (!cardShell) {
-    showCurrent();
-    return;
+export async function gradeRevisionCard(result, options = {}) {
+  if (state.isTransitioning) return false;
+  const currentCard = getCurrentCard();
+  if (!currentCard || (result !== 'ok' && result !== 'review')) return false;
+
+  if (result === 'ok') {
+    state.revisionIncorrect.delete(currentCard);
+    state.revisionMastered.add(currentCard);
+  } else {
+    state.revisionIncorrect.add(currentCard);
+    state.revisionMastered.delete(currentCard);
+  }
+  state.revisionSeen.add(currentCard);
+
+  saveRevisionProgress();
+  const revisionDirection = result === 'ok' ? 'right' : 'left';
+  const transitionOptions = { gestureStarted: Boolean(options.gestureStarted) };
+
+  if (checkRoundComplete()) {
+    const transitioned = await exitCurrentCard(revisionDirection, transitionOptions);
+    if (transitioned) handleRoundComplete();
+    return transitioned;
   }
 
-  resetSwipeTransform(cardShell);
-
-  cardShell.style.transition = 'none';
-  cardShell.style.transform = '';
-  cardShell.style.opacity = '0';
-  cardShell.style.visibility = 'hidden';
-
-  void cardShell.offsetWidth;
-
-  await showCurrent('none', { keepHidden: true });
-
-  cardShell.classList.add('scaling-in');
-  cardShell.style.visibility = '';
-  cardShell.style.opacity = '';
-
-  setTimeout(() => {
-    cardShell.classList.remove('scaling-in');
-    cardShell.style.transition = '';
-  }, 300);
-}
-
-/**
- * Swipe the current card away with animation
- * @param {string} direction
- * @param {Function} callback
- */
-async function swipeCard(direction, callback) {
-  const cardShell = qs('#cardShell');
-  if (!cardShell) return;
-
-  state.isTransitioning = true;
-
-  resetSwipeTransform(cardShell);
-  cardShell.style.transform = '';
-
-  void cardShell.offsetWidth;
-
-  const animationClass = direction === 'right' ? 'swiping-right' : 'swiping-left';
-  cardShell.classList.add(animationClass);
-
-  setTimeout(() => {
-    cardShell.style.transition = 'none';
-    cardShell.style.opacity = '0';
-    cardShell.style.visibility = 'hidden';
-
-    void cardShell.offsetWidth;
-
-    cardShell.classList.remove(animationClass);
-    cardShell.style.transform = '';
-    state.isTransitioning = false;
-
-    if (callback) callback();
-  }, 300);
+  if (!nextRevisionCard()) return false;
+  return showCurrent('none', { revisionDirection, ...transitionOptions });
 }
 
 /**
  * Mark current card as OK (mastered)
  */
 export function markCardOK() {
-  if (state.isTransitioning) return;
-  const currentCard = getCurrentCard();
-  if (!currentCard) return;
-
-  state.revisionIncorrect.delete(currentCard);
-  state.revisionMastered.add(currentCard);
-  state.revisionSeen.add(currentCard);
-
-  saveRevisionProgress();
-
-  if (checkRoundComplete()) {
-    swipeCard('right', () => handleRoundComplete());
-  } else {
-    swipeCard('right', () => nextRevisionCard());
-  }
+  return gradeRevisionCard('ok');
 }
 
 /**
  * Mark current card as not OK (needs review)
  */
 export function markCardPasOK() {
-  if (state.isTransitioning) return;
-  const currentCard = getCurrentCard();
-  if (!currentCard) return;
-
-  state.revisionIncorrect.add(currentCard);
-  state.revisionSeen.add(currentCard);
-  state.revisionMastered.delete(currentCard);
-
-  saveRevisionProgress();
-
-  if (checkRoundComplete()) {
-    swipeCard('left', () => handleRoundComplete());
-  } else {
-    swipeCard('left', () => nextRevisionCard());
-  }
+  return gradeRevisionCard('review');
 }
 
 /**

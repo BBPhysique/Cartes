@@ -2,13 +2,9 @@
  * Mobile swipe gesture handler
  */
 
-import { state, getCurrentCard } from '../state.js';
-import { MAX_HISTORY } from '../config.js';
-import { qs, wait } from '../utils/helpers.js';
-import { loadFrontImage, loadBackImage } from '../core/image-loader.js';
-import { saveRevisionProgress, saveHistory, storeCurrentCard } from '../core/storage.js';
-import { checkRoundComplete, handleRoundComplete } from './revision-mode.js';
-import { showCurrent, updateCounter, sizeStageForImage, resetCardFlip } from '../ui/updates.js';
+import { state } from '../state.js';
+import { qs } from '../utils/helpers.js';
+import { gradeRevisionCard } from './revision-mode.js';
 import { resetSwipeTransform } from '../ui/card-motion.js';
 
 export const swipeGesture = {
@@ -252,8 +248,6 @@ export const swipeGesture = {
     const exitClass = action === 'ok' ? 'swipe-exit-right' : 'swipe-exit-left';
     this.cardShell.classList.add('swipe-exit', exitClass);
 
-    state.isTransitioning = true;
-
     this.isActive = false;
     document.body.classList.remove('revision-active');
 
@@ -261,132 +255,8 @@ export const swipeGesture = {
   },
 
   async handleSwipeTransition(action) {
-    try {
-      const animationPromise = wait(500);
-
-      const currentCard = getCurrentCard();
-      if (currentCard) {
-        if (action === 'ok') {
-          state.revisionIncorrect.delete(currentCard);
-          state.revisionMastered.add(currentCard);
-          state.revisionSeen.add(currentCard);
-        } else {
-          state.revisionIncorrect.add(currentCard);
-          state.revisionSeen.add(currentCard);
-          state.revisionMastered.delete(currentCard);
-        }
-        saveRevisionProgress();
-      }
-
-      if (checkRoundComplete()) {
-        await animationPromise;
-        this.resetCardTransform();
-        state.isTransitioning = false;
-        handleRoundComplete();
-        return;
-      }
-
-      const unseenCards = state.deck.filter((card) => !state.revisionSeen.has(card));
-      if (unseenCards.length === 0) {
-        await animationPromise;
-        this.resetCardTransform();
-        state.isTransitioning = false;
-        handleRoundComplete();
-        return;
-      }
-
-      const randomIndex = Math.floor(Math.random() * unseenCards.length);
-      const nextCardNo = unseenCards[randomIndex];
-
-      const imageLoadPromise = Promise.all([loadFrontImage(nextCardNo), loadBackImage(nextCardNo)]);
-
-      const loadingOrTimeout = Promise.race([imageLoadPromise, wait(800).then(() => null)]);
-
-      const [, imagesResult] = await Promise.all([animationPromise, loadingOrTimeout]);
-
-      state.history.push(nextCardNo);
-      if (state.history.length > MAX_HISTORY) {
-        state.history.shift();
-        state.historyIndex = MAX_HISTORY - 1;
-      } else {
-        state.historyIndex++;
-      }
-      state.unvisited.delete(nextCardNo);
-      saveHistory();
-
-      this.cardShell.style.transition = 'none';
-      this.cardShell.style.opacity = '0';
-      this.cardShell.style.visibility = 'hidden';
-      void this.cardShell.offsetWidth;
-
-      this.resetCardTransform();
-      void this.cardShell.offsetWidth;
-
-      const frontImg = qs('#frontImg');
-      const backImg = qs('#backImg');
-
-      if (state.flipped || qs('#card3d')?.classList.contains('flipping')) {
-        resetCardFlip();
-      }
-
-      let front = { src: '', ok: false };
-      let back = { src: '', ok: false };
-
-      if (imagesResult) {
-        [front, back] = imagesResult;
-      } else {
-        const f = await loadFrontImage(nextCardNo, { probe: false });
-        const b = await loadBackImage(nextCardNo, { probe: false });
-        front = f;
-        back = b;
-      }
-
-      frontImg.src = front.src;
-      backImg.src = back.src;
-
-      if (imagesResult) {
-        frontImg.classList.add('loaded');
-        backImg.classList.add('loaded');
-      } else {
-        frontImg.classList.remove('loaded');
-        backImg.classList.remove('loaded');
-        if (frontImg.complete) frontImg.classList.add('loaded');
-        else frontImg.onload = () => frontImg.classList.add('loaded');
-
-        if (backImg.complete) backImg.classList.add('loaded');
-        else backImg.onload = () => backImg.classList.add('loaded');
-      }
-
-      if (front.ok) {
-        state.sizes[nextCardNo] = { w: front.width, h: front.height };
-        sizeStageForImage(front.width, front.height);
-      } else if (back.ok) {
-        state.sizes[nextCardNo] = { w: back.width, h: back.height };
-        sizeStageForImage(back.width, back.height);
-      }
-
-      updateCounter();
-      storeCurrentCard(nextCardNo);
-
-      this.cardShell.classList.add('scaling-in');
-
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-      this.cardShell.style.visibility = '';
-      this.cardShell.style.opacity = '';
-
-      state.isTransitioning = false;
-
-      await wait(400);
-
-      this.cardShell.classList.remove('scaling-in');
-      this.cardShell.style.transition = '';
-    } catch (e) {
-      console.error('Swipe transition error:', e);
-      this.resetCardTransform();
-      state.isTransitioning = false;
-      showCurrent();
-    }
+    const transitioned = await gradeRevisionCard(action, { gestureStarted: true });
+    if (!transitioned) this.resetCardTransform();
   },
 
   snapBack() {

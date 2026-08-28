@@ -1,20 +1,13 @@
 /**
- * Chapter management and discovery
+ * Chapter discovery and loading.
  */
 
 import { state } from '../state.js';
-import { CHAPTER_PREFIX, CHAPTER_SUFFIX, MAX_CHAPTERS_PROBE, MAX_PROBE } from '../config.js';
-import {
-  fetchManifest,
-  loadFrontImage,
-  loadBackImage,
-  registerAssetVersion,
-  cacheFormatsForBase,
-  getFormatsForBase,
-} from '../core/image-loader.js';
+import { CHAPTER_PREFIX, CHAPTER_SUFFIX, MAX_CHAPTERS_PROBE } from '../config.js';
+import { fetchManifest } from '../core/image-loader.js';
 import { getStoredCard, loadHistory, loadRevisionProgress } from '../core/storage.js';
 import { asPositiveInt, qs } from '../utils/helpers.js';
-import { rebuildDeck } from './navigation.js';
+import { rebuildDeck, resetFastNavState, ensureShuffleQueue } from './navigation.js';
 import {
   showCurrent,
   showSkeleton,
@@ -23,228 +16,140 @@ import {
   updateFavouritesCount,
 } from '../ui/updates.js';
 import { resetRevisionProgress } from './revision-mode.js';
-import { resetFastNavState, ensureShuffleQueue } from './navigation.js';
 
-/**
- * Discover available chapters
- * @returns {Promise<number[]>}
- */
+function chapterName(chapterNo) {
+  return `${CHAPTER_PREFIX}${chapterNo}${CHAPTER_SUFFIX}`;
+}
+
+function chapterPath(chapterNo) {
+  return `flashcards/${chapterName(chapterNo)}`;
+}
+
+function cardGroupMatches(group, field, perCard, totalCards) {
+  if (!group || typeof group !== 'object') return false;
+
+  const groupedCards = Object.entries(group).flatMap(([value, cards]) => {
+    if (!Array.isArray(cards)) return [null];
+    return cards.map((cardNo) =>
+      Number.isInteger(cardNo) && perCard[String(cardNo)]?.[field] === value ? cardNo : null
+    );
+  });
+  return (
+    groupedCards.length === totalCards &&
+    groupedCards.every(Boolean) &&
+    new Set(groupedCards).size === totalCards
+  );
+}
+
+function getManifestError(manifest, expectedChapter) {
+  if (!manifest || typeof manifest !== 'object') return 'manifest absent ou illisible';
+  if (manifest.chapter !== expectedChapter) return `chapter doit valoir "${expectedChapter}"`;
+  if (typeof manifest.asset_version !== 'string' || !manifest.asset_version.trim()) {
+    return 'asset_version est requis';
+  }
+  if (typeof manifest.image_format !== 'string' || !/^[a-z0-9]+$/i.test(manifest.image_format)) {
+    return 'image_format est invalide';
+  }
+
+  const totalCards = manifest.total_cards;
+  if (!Number.isInteger(totalCards) || totalCards < 1) return 'total_cards doit être positif';
+  if (!manifest.per_card || typeof manifest.per_card !== 'object') return 'per_card est requis';
+
+  for (let cardNo = 1; cardNo <= totalCards; cardNo++) {
+    const card = manifest.per_card[String(cardNo)];
+    const frontWidth = asPositiveInt(card?.front?.width);
+    const frontHeight = asPositiveInt(card?.front?.height);
+    const backWidth = asPositiveInt(card?.back?.width);
+    const backHeight = asPositiveInt(card?.back?.height);
+    if (
+      !card ||
+      typeof card.border !== 'string' ||
+      typeof card.timer !== 'string' ||
+      !frontWidth ||
+      !frontHeight ||
+      !backWidth ||
+      !backHeight
+    ) {
+      return `per_card.${cardNo} est incomplet`;
+    }
+  }
+
+  if (Object.keys(manifest.per_card).length !== totalCards) {
+    return 'per_card doit contenir exactement total_cards entrées';
+  }
+  if (!cardGroupMatches(manifest.cards_by_border, 'border', manifest.per_card, totalCards)) {
+    return 'cards_by_border est invalide';
+  }
+  if (!cardGroupMatches(manifest.cards_by_timer, 'timer', manifest.per_card, totalCards)) {
+    return 'cards_by_timer est invalide';
+  }
+  return null;
+}
+
 export async function discoverChapters() {
   const found = [];
-
   const batchSize = 5;
+
   for (let start = 1; start <= MAX_CHAPTERS_PROBE; start += batchSize) {
-    const batch = [];
-    for (let n = start; n < Math.min(start + batchSize, MAX_CHAPTERS_PROBE + 1); n++) {
-      const basePath = `flashcards/${CHAPTER_PREFIX}${n}${CHAPTER_SUFFIX}`;
-      batch.push(
-        (async () => {
-          const manifest = await fetchManifest(basePath).catch(() => null);
-          if (manifest) return n;
-          const probe = await loadFrontImage(1, { basePath });
-          return probe.ok ? n : null;
-        })()
-      );
-    }
-    const results = await Promise.all(batch);
-    const validChapters = results.filter((n) => n !== null);
+    const chapterNumbers = Array.from(
+      { length: Math.min(batchSize, MAX_CHAPTERS_PROBE - start + 1) },
+      (_, index) => start + index
+    );
+    const manifests = await Promise.all(
+      chapterNumbers.map((chapterNo) => fetchManifest(chapterPath(chapterNo)))
+    );
+    const validChapters = chapterNumbers.filter(
+      (chapterNo, index) => !getManifestError(manifests[index], chapterName(chapterNo))
+    );
     found.push(...validChapters);
 
-    if (validChapters.length < batch.length) break;
+    if (validChapters.length < chapterNumbers.length) break;
   }
 
   return found;
 }
 
-/**
- * Apply chapter settings to state
- * @param {number} n
- */
-function applyChapter(n) {
-  state.chapter = n;
-  state.basePath = `flashcards/${CHAPTER_PREFIX}${n}${CHAPTER_SUFFIX}`;
-  state.formats = getFormatsForBase(state.basePath) || null;
-  state.assetVersion = null;
-}
-
-/**
- * Load and apply manifest metadata
- * @param {Object} manifest
- * @returns {{total: number, hasSizes: boolean, defaultSize: Object|null}}
- */
-function applyManifestMetadata(manifest) {
-  const info = { total: 0, hasSizes: false, defaultSize: null };
-  if (!manifest || typeof manifest !== 'object') return info;
-
-  if (Number.isFinite(manifest.total_cards)) {
-    info.total = Number(manifest.total_cards);
-  }
-
-  const formats = cacheFormatsForBase(state.basePath, manifest);
-  if (formats) {
-    state.formats = formats;
-  }
-
-  let maxCard = info.total;
-  let perCardSizeFound = false;
-
-  if (manifest.per_card && typeof manifest.per_card === 'object') {
-    for (const [key, value] of Object.entries(manifest.per_card)) {
-      const cardNo = asPositiveInt(key);
-      if (!cardNo) continue;
-      if (cardNo > maxCard) maxCard = cardNo;
-      if (value && typeof value === 'object') {
-        let width = null;
-        let height = null;
-        if (value.front && typeof value.front === 'object') {
-          width = asPositiveInt(value.front.width);
-          height = asPositiveInt(value.front.height);
-        }
-        if (!width || !height) {
-          width = asPositiveInt(value.width);
-          height = asPositiveInt(value.height);
-        }
-        if (width && height) {
-          state.sizes[cardNo] = { w: width, h: height };
-          perCardSizeFound = true;
-        }
-      }
-    }
-  }
-
-  if (maxCard > info.total) info.total = maxCard;
-  info.hasSizes = perCardSizeFound;
-
-  const dims = manifest.card_dimensions;
-  if (dims && typeof dims === 'object') {
-    const frontDims = dims.front && typeof dims.front === 'object' ? dims.front : dims;
-    const width = asPositiveInt(frontDims.width);
-    const height = asPositiveInt(frontDims.height);
-    if (width && height) {
-      info.defaultSize = { w: width, h: height };
-    }
-  }
-
-  return info;
-}
-
-/**
- * Load manifest for current chapter
- * @param {Object} options
- * @returns {Promise<{manifest: Object|null, info: Object}>}
- */
-async function loadManifest(options = {}) {
-  state.manifest = null;
-  if (!state.basePath) {
-    state.formats = null;
-    state.assetVersion = null;
-    return { manifest: null, info: { total: 0, hasSizes: false } };
-  }
-  const manifest = await fetchManifest(state.basePath, options);
+function applyManifest(manifest) {
   state.manifest = manifest;
-  state.assetVersion = registerAssetVersion(state.basePath, manifest);
-  state.formats = getFormatsForBase(state.basePath) || state.formats;
-  const info = applyManifestMetadata(manifest);
-  if (info.defaultSize && info.total) {
-    for (let i = 1; i <= info.total; i++) {
-      if (!state.sizes[i]) {
-        state.sizes[i] = { ...info.defaultSize };
-      }
-    }
-    info.hasSizes = true;
-  }
-  return { manifest, info };
-}
+  state.total = manifest.total_cards;
+  state.sizes = {};
 
-/**
- * Discover card pairs using binary search
- * @returns {Promise<number>}
- */
-async function discoverPairs() {
-  let left = 1,
-    right = MAX_PROBE,
-    lastValid = 0;
-
-  while (left <= right) {
-    const mid = Math.floor((left + right) / 2);
-    const [pf, pb] = await Promise.all([loadFrontImage(mid), loadBackImage(mid)]);
-
-    if (pf.ok && pb.ok) {
-      lastValid = mid;
-      state.sizes[mid] = { w: pf.width, h: pf.height };
-      left = mid + 1;
-    } else {
-      right = mid - 1;
-    }
-  }
-
-  if (lastValid > 0) {
-    const checks = [];
-    for (let k = 1; k <= lastValid; k++) {
-      if (!state.sizes[k]) {
-        checks.push(
-          loadFrontImage(k).then((pf) => {
-            if (pf.ok) {
-              state.sizes[k] = { w: pf.width, h: pf.height };
-            }
-          })
-        );
-      }
-    }
-    await Promise.all(checks);
-  }
-
-  return lastValid;
-}
-
-/**
- * Ensure all card sizes are loaded
- * @param {number} total
- */
-async function ensureCardSizes(total) {
-  if (!total) return;
-  const pending = [];
-  for (let k = 1; k <= total; k++) {
-    if (!state.sizes[k]) pending.push(k);
-  }
-  const batchSize = 6;
-  while (pending.length) {
-    const slice = pending.splice(0, batchSize);
-    await Promise.all(
-      slice.map((cardNo) =>
-        loadFrontImage(cardNo).then((pf) => {
-          if (pf.ok && pf.width && pf.height) {
-            state.sizes[cardNo] = { w: pf.width, h: pf.height };
-          }
-        })
-      )
-    );
+  for (let cardNo = 1; cardNo <= manifest.total_cards; cardNo++) {
+    const { width, height } = manifest.per_card[String(cardNo)].front;
+    state.sizes[cardNo] = { w: width, h: height };
   }
 }
 
-/**
- * Load a chapter
- * @param {number} n
- */
-export async function loadChapter(n) {
+async function loadManifest() {
+  const manifest = await fetchManifest(state.basePath);
+  const error = getManifestError(manifest, chapterName(state.chapter));
+  if (error) throw new Error(`Manifest ${state.basePath}: ${error}`);
+  applyManifest(manifest);
+}
+
+export async function loadChapter(chapterNo) {
   const chapterSelect = qs('#chapterSelect');
-
   if (chapterSelect) chapterSelect.disabled = true;
 
   try {
-    await loadChapterContent(n);
+    await loadChapterContent(chapterNo);
+  } catch (error) {
+    state.total = 0;
+    state.deck = [];
+    state.manifest = null;
+    hideSkeleton();
+    qs('#counter').textContent = 'Chapitre indisponible : manifest invalide.';
+    updateNavButtons();
+    console.error(error);
   } finally {
     if (chapterSelect) chapterSelect.disabled = false;
   }
 }
 
-async function loadChapterContent(n) {
+async function loadChapterContent(chapterNo) {
   showSkeleton();
-  applyChapter(n);
-  updateFavouritesCount();
-
-  state.sizes = {};
-  state.total = 0;
+  state.chapter = chapterNo;
+  state.basePath = chapterPath(chapterNo);
   state.deck = [];
   state.history = [];
   state.historyIndex = -1;
@@ -253,10 +158,9 @@ async function loadChapterContent(n) {
   state.shuffleQueue = [];
   state.imagesLoaded.clear();
   state.preloading.clear();
-  state.formats = getFormatsForBase(state.basePath) || null;
   resetFastNavState();
+  updateFavouritesCount();
 
-  // Reset revision progress when changing chapter
   if (state.revisionMode) {
     const progress = loadRevisionProgress();
     if (progress) {
@@ -269,31 +173,10 @@ async function loadChapterContent(n) {
     }
   }
 
-  const { info } = await loadManifest();
-  let total = info.total || 0;
-  let hasSizes = info.hasSizes;
-
-  if (!total) {
-    total = await discoverPairs();
-    hasSizes = true;
-  } else if (!hasSizes && total > 0) {
-    await ensureCardSizes(total);
-    hasSizes = true;
-  }
-
-  state.total = total;
-
-  if (!total) {
-    hideSkeleton();
-    qs('#counter').textContent = `Aucune image de carte trouvée dans "${state.basePath}".`;
-    updateNavButtons();
-    return;
-  }
-
+  await loadManifest();
   const storedCard = getStoredCard(state.chapter);
   rebuildDeck(storedCard);
 
-  // If in revision mode and round 2+, filter deck to only incorrect cards
   if (state.revisionMode && state.revisionRound > 1 && state.revisionIncorrect.size > 0) {
     state.deck = state.deck.filter((card) => state.revisionIncorrect.has(card));
   }
@@ -305,36 +188,24 @@ async function loadChapterContent(n) {
     return;
   }
 
-  // Initialize based on mode
   if (state.shuffle) {
     const savedHistory = loadHistory();
+    const initialCard = storedCard && state.deck.includes(storedCard) ? storedCard : null;
+
     if (savedHistory.length > 0) {
       state.history = savedHistory;
-      state.historyIndex = savedHistory.length - 1;
-      state.unvisited = new Set(state.deck);
-      savedHistory.forEach((card) => state.unvisited.delete(card));
-      state.shuffleQueue = [];
-    } else if (storedCard && state.deck.includes(storedCard)) {
-      state.history = [storedCard];
-      state.historyIndex = 0;
-      state.unvisited = new Set(state.deck);
-      state.unvisited.delete(storedCard);
-      state.shuffleQueue = [];
+    } else if (initialCard) {
+      state.history = [initialCard];
     } else {
-      const randomIdx = Math.floor(Math.random() * state.deck.length);
-      const firstCard = state.deck[randomIdx];
-      state.history = [firstCard];
-      state.historyIndex = 0;
-      state.unvisited = new Set(state.deck);
-      state.unvisited.delete(firstCard);
-      state.shuffleQueue = [];
+      state.history = [state.deck[Math.floor(Math.random() * state.deck.length)]];
     }
+
+    state.historyIndex = state.history.length - 1;
+    state.unvisited = new Set(state.deck);
+    state.history.forEach((card) => state.unvisited.delete(card));
   } else {
-    if (storedCard && state.deck.includes(storedCard)) {
-      state.currentIndex = state.deck.indexOf(storedCard);
-    } else {
-      state.currentIndex = 0;
-    }
+    state.currentIndex =
+      storedCard && state.deck.includes(storedCard) ? state.deck.indexOf(storedCard) : 0;
   }
 
   ensureShuffleQueue();

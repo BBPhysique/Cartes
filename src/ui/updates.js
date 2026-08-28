@@ -11,6 +11,7 @@ import { loadFavourites } from '../core/storage.js';
 import { storeCurrentCard } from '../core/storage.js';
 import { preloadNearbyCards } from '../core/preloader.js';
 import { processNavQueue, rebuildDeck } from '../features/navigation.js';
+import { resetSwipeTransform } from './card-motion.js';
 
 // ==================== Modal State ====================
 
@@ -199,142 +200,261 @@ export function resetCardFlip() {
   card3d.classList.remove('no-anim');
 }
 
-export async function showCurrent(direction = 'none', options = {}) {
-  if (state.isTransitioning) return;
-
-  const keepHidden = Boolean(options.keepHidden);
-
-  const n = getCurrentCard();
-  if (!n) return;
-
-  const size = state.sizes[n];
-  if (size && size.w > 0 && size.h > 0) {
-    sizeStageForImage(size.w, size.h);
-  }
-
+function getCardElements() {
   const cardShell = qs('#cardShell');
   const card3d = qs('#card3d');
   const frontImg = qs('#frontImg');
   const backImg = qs('#backImg');
-  const chapterSelect = qs('#chapterSelect');
+  return { cardShell, card3d, frontImg, backImg };
+}
 
-  const isFirstLoad = !state.imagesLoaded.has(n);
-  if (isFirstLoad || qs('#stage')?.classList.contains('is-empty')) {
+function waitForImage(image) {
+  if (image.complete) return Promise.resolve();
+  return new Promise((resolve) => image.addEventListener('load', resolve, { once: true }));
+}
+
+async function loadCardAssets(cardNo) {
+  return Promise.all([loadFrontImage(cardNo), loadBackImage(cardNo)]);
+}
+
+async function renderCard(cardNo, assets, elements) {
+  const { card3d, frontImg, backImg } = elements;
+  const [front, back] = assets;
+
+  if (!front?.ok || !back?.ok) {
+    throw new Error(`Unable to load both images for card ${cardNo}`);
+  }
+
+  if (state.flipped || card3d.classList.contains('flipping')) {
+    resetCardFlip();
+  }
+
+  frontImg.classList.remove('loaded');
+  backImg.classList.remove('loaded');
+
+  const dimensions = front?.ok ? front : back;
+  if (dimensions?.ok && dimensions.width && dimensions.height) {
+    state.sizes[cardNo] = { w: dimensions.width, h: dimensions.height };
+    sizeStageForImage(dimensions.width, dimensions.height);
+  }
+
+  frontImg.src = front?.src || '';
+  backImg.src = back?.src || '';
+
+  try {
+    await Promise.all([frontImg.decode(), backImg.decode()]);
+  } catch {
+    await Promise.all([waitForImage(frontImg), waitForImage(backImg)]);
+  }
+
+  state.imagesLoaded.add(cardNo);
+  frontImg.classList.add('loaded');
+  backImg.classList.add('loaded');
+  hideSkeleton();
+  updateCounter();
+  updateBookmarkButton();
+}
+
+async function runSlideTransition(direction, instant, renderTarget, elements) {
+  const { cardShell } = elements;
+  const outClass = direction === 'next' ? 'out-left' : 'out-right';
+  const outName = direction === 'next' ? 'outLeft' : 'outRight';
+  const inClass = direction === 'next' ? 'in-right' : 'in-left';
+  const inName = direction === 'next' ? 'inRight' : 'inLeft';
+
+  cardShell.classList.remove('out-left', 'out-right', 'in-left', 'in-right');
+  void cardShell.offsetWidth;
+
+  if (!instant) {
+    cardShell.classList.add(outClass);
+    await waitAnimationEnd(cardShell, outName, 400);
+  }
+
+  await renderTarget();
+  cardShell.classList.remove(outClass);
+
+  if (!instant) {
+    void cardShell.offsetWidth;
+    cardShell.classList.add(inClass);
+    await waitAnimationEnd(cardShell, inName, 500);
+    cardShell.classList.remove(inClass);
+  }
+}
+
+let revisionEntranceCleanup = null;
+
+function stopRevisionEntrance(cardShell) {
+  if (revisionEntranceCleanup) {
+    revisionEntranceCleanup();
+    return;
+  }
+  cardShell.classList.remove('scaling-in');
+  cardShell.style.transition = '';
+}
+
+function startRevisionEntrance(cardShell) {
+  stopRevisionEntrance(cardShell);
+  cardShell.classList.add('scaling-in');
+  void cardShell.offsetWidth;
+  cardShell.style.visibility = '';
+  cardShell.style.opacity = '';
+
+  let fallbackTimer = null;
+  const cleanup = () => {
+    if (revisionEntranceCleanup !== cleanup) return;
+    revisionEntranceCleanup = null;
+    clearTimeout(fallbackTimer);
+    cardShell.removeEventListener('animationend', onAnimationEnd);
+    cardShell.classList.remove('scaling-in');
+    cardShell.style.transition = '';
+  };
+  const onAnimationEnd = (event) => {
+    if (event.animationName === 'scaleIn') cleanup();
+  };
+
+  revisionEntranceCleanup = cleanup;
+  cardShell.addEventListener('animationend', onAnimationEnd);
+  fallbackTimer = setTimeout(cleanup, 500);
+}
+
+async function runRevisionTransition(direction, gestureStarted, renderTarget, elements) {
+  const { cardShell } = elements;
+  stopRevisionEntrance(cardShell);
+  const exitClass = gestureStarted
+    ? `swipe-exit-${direction}`
+    : direction === 'right'
+      ? 'swiping-right'
+      : 'swiping-left';
+  const exitName = gestureStarted
+    ? direction === 'right'
+      ? 'swipeExitRight'
+      : 'swipeExitLeft'
+    : direction === 'right'
+      ? 'swipeRightOut'
+      : 'swipeLeftOut';
+  if (renderTarget) renderTarget(true);
+
+  if (!gestureStarted) {
+    resetSwipeTransform(cardShell);
+    void cardShell.offsetWidth;
+    cardShell.classList.add(exitClass);
+  }
+
+  await waitAnimationEnd(cardShell, exitName, gestureStarted ? 600 : 400);
+  cardShell.style.transition = 'none';
+  cardShell.style.opacity = '0';
+  cardShell.style.visibility = 'hidden';
+  cardShell.classList.remove(exitClass);
+  resetSwipeTransform(cardShell);
+
+  if (!renderTarget) return;
+
+  await renderTarget(false, true);
+  startRevisionEntrance(cardShell);
+}
+
+async function transitionCard({
+  cardNo = getCurrentCard(),
+  direction = 'none',
+  instant = false,
+  revisionDirection = null,
+  gestureStarted = false,
+  renderTarget = true,
+} = {}) {
+  if (state.isTransitioning || (renderTarget && !cardNo)) return false;
+
+  const elements = getCardElements();
+  if (Object.values(elements).some((element) => !element)) return false;
+
+  const { cardShell } = elements;
+  const chapterSelect = qs('#chapterSelect');
+  const size = renderTarget ? state.sizes[cardNo] : null;
+
+  if (size?.w > 0 && size?.h > 0) {
+    sizeStageForImage(size.w, size.h);
+  }
+
+  if (
+    renderTarget &&
+    !revisionDirection &&
+    (!state.imagesLoaded.has(cardNo) || qs('#stage')?.classList.contains('is-empty'))
+  ) {
     showSkeleton();
   }
 
   state.isTransitioning = true;
   if (chapterSelect) chapterSelect.disabled = true;
 
-  const finishTransition = () => {
-    state.isTransitioning = false;
-    if (chapterSelect) chapterSelect.disabled = false;
-    updateNavButtons();
-    if (n) {
-      storeCurrentCard(n);
-    }
-    preloadNearbyCards();
-    processNavQueue();
-  };
-
-  const swapImages = async () => {
-    if (state.flipped || card3d.classList.contains('flipping')) {
-      resetCardFlip();
-    }
-
-    frontImg.classList.remove('loaded');
-    backImg.classList.remove('loaded');
-
-    const [front, back] = await Promise.all([loadFrontImage(n), loadBackImage(n)]);
-
-    if (front && front.ok && front.width && front.height) {
-      state.sizes[n] = { w: front.width, h: front.height };
-      sizeStageForImage(front.width, front.height);
-    } else if (back && back.ok && back.width && back.height) {
-      state.sizes[n] = { w: back.width, h: back.height };
-      sizeStageForImage(back.width, back.height);
-    }
-
-    frontImg.src = front.src;
-    backImg.src = back.src;
-
-    try {
-      if (frontImg.decode && backImg.decode) {
-        await Promise.all([frontImg.decode(), backImg.decode()]);
-      } else {
-        await Promise.all([
-          new Promise((resolve) => {
-            if (frontImg.complete) resolve();
-            else frontImg.onload = resolve;
-          }),
-          new Promise((resolve) => {
-            if (backImg.complete) resolve();
-            else backImg.onload = resolve;
-          }),
-        ]);
-      }
-    } catch {
-      await Promise.all([
-        new Promise((resolve) => {
-          if (frontImg.complete) resolve();
-          else frontImg.onload = resolve;
-        }),
-        new Promise((resolve) => {
-          if (backImg.complete) resolve();
-          else backImg.onload = resolve;
-        }),
-      ]);
-    }
-
-    state.imagesLoaded.add(n);
-    frontImg.classList.add('loaded');
-    backImg.classList.add('loaded');
-
+  let assetsPromise = null;
+  const render = async (preloadOnly = false, keepHidden = false) => {
+    assetsPromise ||= loadCardAssets(cardNo);
+    if (preloadOnly) return assetsPromise;
+    const assets = await assetsPromise;
+    await renderCard(cardNo, assets, elements);
     if (!keepHidden) {
       cardShell.style.opacity = '';
       cardShell.style.visibility = '';
       cardShell.style.transition = '';
     }
-
-    hideSkeleton();
-    updateCounter();
-    updateBookmarkButton();
   };
 
-  if (direction === 'none') {
-    await swapImages();
-    finishTransition();
-    return;
+  try {
+    if (revisionDirection) {
+      await runRevisionTransition(
+        revisionDirection,
+        gestureStarted,
+        renderTarget ? render : null,
+        elements
+      );
+    } else if (direction !== 'none') {
+      await runSlideTransition(direction, instant, render, elements);
+    } else {
+      await render();
+    }
+    return true;
+  } catch (error) {
+    console.error('Card transition error:', error);
+    cardShell.classList.remove(
+      'out-left',
+      'out-right',
+      'in-left',
+      'in-right',
+      'swiping-left',
+      'swiping-right',
+      'scaling-in'
+    );
+    resetSwipeTransform(cardShell);
+    cardShell.style.opacity = '';
+    cardShell.style.visibility = '';
+    cardShell.style.transition = '';
+    return false;
+  } finally {
+    state.isTransitioning = false;
+    if (chapterSelect) chapterSelect.disabled = false;
+    if (renderTarget) {
+      updateNavButtons();
+      storeCurrentCard(cardNo);
+      preloadNearbyCards();
+    }
+    processNavQueue();
   }
+}
 
-  const outClass = direction === 'next' ? 'out-left' : 'out-right';
-  const outName = direction === 'next' ? 'outLeft' : 'outRight';
-  const inClass = direction === 'next' ? 'in-right' : 'in-left';
-  const inName = direction === 'next' ? 'inRight' : 'inLeft';
+export function showCurrent(direction = 'none', options = {}) {
+  return transitionCard({
+    direction,
+    instant: Boolean(options.instant),
+    revisionDirection: options.revisionDirection || null,
+    gestureStarted: Boolean(options.gestureStarted),
+  });
+}
 
-  const useInstant = Boolean(options && options.instant);
-
-  cardShell.classList.remove('out-left', 'out-right', 'in-left', 'in-right');
-  void cardShell.offsetWidth;
-
-  if (useInstant) {
-    await swapImages();
-    finishTransition();
-    return;
-  }
-
-  cardShell.classList.add(outClass);
-  await waitAnimationEnd(cardShell, outName, 400);
-
-  await swapImages();
-
-  cardShell.classList.remove(outClass);
-  void cardShell.offsetWidth;
-  cardShell.classList.add(inClass);
-  await waitAnimationEnd(cardShell, inName, 500);
-  cardShell.classList.remove(inClass);
-
-  finishTransition();
+export function exitCurrentCard(revisionDirection, options = {}) {
+  return transitionCard({
+    revisionDirection,
+    gestureStarted: Boolean(options.gestureStarted),
+    renderTarget: false,
+  });
 }
 
 // ==================== Counter ====================

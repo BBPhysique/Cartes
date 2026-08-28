@@ -4,14 +4,9 @@
 
 import { state, getCurrentCard } from '../state.js';
 import { MAX_HISTORY, FAST_NAV_THRESHOLD, FAST_NAV_WINDOW_MS } from '../config.js';
-import { shuffleArray, asPositiveInt, nowMs } from '../utils/helpers.js';
+import { shuffleArray, nowMs } from '../utils/helpers.js';
 import { loadFavourites, saveHistory, clearHistory, loadHistory } from '../core/storage.js';
-import {
-  showCurrent,
-  updateShuffleUI,
-  updateFavouritesUI,
-  showEmptyState,
-} from '../ui/updates.js';
+import { showCurrent, updateShuffleUI, updateFavouritesUI, showEmptyState } from '../ui/updates.js';
 
 // ==================== Fast Navigation ====================
 
@@ -90,55 +85,17 @@ export function ensureShuffleQueue(currentCard) {
 
 export function rebuildDeck(keepCardNo = null) {
   const { total, manifest } = state;
-  let newDeck = null;
-
-  if (manifest && manifest.per_card && typeof manifest.per_card === 'object') {
-    const numbers = Array.from(
-      new Set(
-        Object.keys(manifest.per_card)
-          .map((key) => asPositiveInt(key))
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a - b);
-    if (numbers.length) {
-      newDeck = numbers;
-    }
-  }
-
-  if (!newDeck) {
-    newDeck = Array.from({ length: total }, (_, i) => i + 1);
-  } else if (total && newDeck.length < total) {
-    const existing = new Set(newDeck);
-    for (let i = 1; i <= total; i++) {
-      if (!existing.has(i)) newDeck.push(i);
-    }
-  }
+  let newDeck = Array.from({ length: total }, (_, index) => index + 1);
 
   if (manifest) {
-    // Filter out purple cards
-    const purple = new Set();
-    if (manifest.per_card && typeof manifest.per_card === 'object') {
-      for (const [k, v] of Object.entries(manifest.per_card)) {
-        if (v && v.border === 'purple') purple.add(parseInt(k, 10));
-      }
-    } else if (manifest.cards_by_border && Array.isArray(manifest.cards_by_border.purple)) {
-      manifest.cards_by_border.purple.forEach((n) => purple.add(parseInt(n, 10)));
-    }
+    const purple = new Set(manifest.cards_by_border.purple || []);
     if (purple.size) {
       newDeck = newDeck.filter((n) => !purple.has(n));
     }
 
-    // Apply timer filter
     const tf = state.filterTimer;
     if (tf && tf !== 'all') {
-      const allowedTimer = new Set();
-      if (manifest.cards_by_timer && Array.isArray(manifest.cards_by_timer[tf])) {
-        manifest.cards_by_timer[tf].forEach((n) => allowedTimer.add(parseInt(n, 10)));
-      } else if (manifest.per_card && typeof manifest.per_card === 'object') {
-        for (const [k, v] of Object.entries(manifest.per_card)) {
-          if (v && v.timer === tf) allowedTimer.add(parseInt(k, 10));
-        }
-      }
+      const allowedTimer = new Set(manifest.cards_by_timer[tf] || []);
       if (allowedTimer.size) {
         newDeck = newDeck.filter((n) => allowedTimer.has(n));
       } else {
@@ -146,17 +103,9 @@ export function rebuildDeck(keepCardNo = null) {
       }
     }
 
-    // Apply difficulty filter
     const df = state.filterDifficulty;
     if (df && df !== 'all') {
-      const allowedBorder = new Set();
-      if (manifest.cards_by_border && Array.isArray(manifest.cards_by_border[df])) {
-        manifest.cards_by_border[df].forEach((n) => allowedBorder.add(parseInt(n, 10)));
-      } else if (manifest.per_card && typeof manifest.per_card === 'object') {
-        for (const [k, v] of Object.entries(manifest.per_card)) {
-          if (v && v.border === df) allowedBorder.add(parseInt(k, 10));
-        }
-      }
+      const allowedBorder = new Set(manifest.cards_by_border[df] || []);
       if (allowedBorder.size) {
         newDeck = newDeck.filter((n) => allowedBorder.has(n));
       } else {
