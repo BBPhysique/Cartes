@@ -1,6 +1,6 @@
 {
   "chapter": "ch1_cartes",
-  "asset_version": "20260827T135736Z",
+  "asset_version": "20260901T190556Z",
   "image_format": "webp",
   "total_cards": 16,
   "cards_by_border": {
@@ -13,6 +13,7 @@
       6,
       7,
       8,
+      14,
       16
     ],
     "orange": [
@@ -25,7 +26,6 @@
       13
     ],
     "purple": [
-      14,
       15
     ]
   },
@@ -38,6 +38,7 @@
       6,
       8,
       9,
+      14,
       16
     ],
     "yellow": [
@@ -49,7 +50,6 @@
       13
     ],
     "none": [
-      14,
       15
     ]
   },
@@ -71,11 +71,11 @@
       "timer": "green",
       "front": {
         "width": 1177,
-        "height": 814
+        "height": 813
       },
       "back": {
         "width": 1177,
-        "height": 814
+        "height": 813
       }
     },
     "3": {
@@ -83,11 +83,11 @@
       "timer": "green",
       "front": {
         "width": 1177,
-        "height": 813
+        "height": 814
       },
       "back": {
         "width": 1177,
-        "height": 813
+        "height": 814
       }
     },
     "4": {
@@ -119,11 +119,11 @@
       "timer": "green",
       "front": {
         "width": 1177,
-        "height": 814
+        "height": 813
       },
       "back": {
         "width": 1177,
-        "height": 814
+        "height": 813
       }
     },
     "7": {
@@ -131,11 +131,11 @@
       "timer": "yellow",
       "front": {
         "width": 1177,
-        "height": 813
+        "height": 814
       },
       "back": {
         "width": 1177,
-        "height": 813
+        "height": 814
       }
     },
     "8": {
@@ -167,11 +167,11 @@
       "timer": "yellow",
       "front": {
         "width": 1177,
-        "height": 814
+        "height": 813
       },
       "back": {
         "width": 1177,
-        "height": 814
+        "height": 813
       }
     },
     "11": {
@@ -211,15 +211,15 @@
       }
     },
     "14": {
-      "border": "purple",
-      "timer": "none",
+      "border": "green",
+      "timer": "green",
       "front": {
         "width": 1177,
-        "height": 814
+        "height": 813
       },
       "back": {
         "width": 1177,
-        "height": 814
+        "height": 813
       }
     },
     "15": {
