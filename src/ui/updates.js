@@ -82,18 +82,10 @@ export function showEmptyState(message = 'Pas de résultat') {
 
 // ==================== Stage Sizing ====================
 
+// Width and height are derived in CSS from --card-aspect, so the stage keeps its
+// footprint before the first image loads and follows viewport resizes.
 export function sizeStageForImage(naturalW, naturalH) {
-  const stage = qs('#stage');
-  const maxWidth = Math.min(window.innerWidth * 0.9, 900);
-  const availableHeight = window.innerHeight - 300;
-  const maxHeight = Math.max(availableHeight, 200);
-
-  const widthByHeight = maxHeight * (naturalW / naturalH);
-  const finalWidth = Math.min(maxWidth, widthByHeight);
-  const finalHeight = finalWidth * (naturalH / naturalW);
-
-  stage.style.width = `${finalWidth}px`;
-  stage.style.height = `${finalHeight}px`;
+  qs('#stage').style.setProperty('--card-aspect', String(naturalW / naturalH));
 }
 
 // ==================== Card Display ====================
@@ -217,6 +209,25 @@ async function loadCardAssets(cardNo) {
   return Promise.all([loadFrontImage(cardNo), loadBackImage(cardNo)]);
 }
 
+// Armed on page load and chapter switch so only the chapter's first card gets the sheen.
+let loadSheenPending = false;
+
+export function armLoadSheen() {
+  loadSheenPending = true;
+}
+
+function clearLoadSheen(event) {
+  if (event.animationName === 'cardSheen') event.currentTarget.classList.remove('just-loaded');
+}
+
+function playLoadSheen(cardShell) {
+  cardShell.classList.remove('just-loaded');
+  void cardShell.offsetWidth;
+  cardShell.classList.add('just-loaded');
+  // Same function reference, so repeated calls never stack listeners.
+  cardShell.addEventListener('animationend', clearLoadSheen);
+}
+
 async function renderCard(cardNo, assets, elements) {
   const { card3d, frontImg, backImg } = elements;
   const [front, back] = assets;
@@ -251,6 +262,10 @@ async function renderCard(cardNo, assets, elements) {
   frontImg.classList.add('loaded');
   backImg.classList.add('loaded');
   hideSkeleton();
+  if (loadSheenPending) {
+    loadSheenPending = false;
+    playLoadSheen(elements.cardShell);
+  }
   updateCounter();
   updateBookmarkButton();
 }

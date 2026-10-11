@@ -69,6 +69,7 @@
   --skeleton-bg: #f3f4f6;
   --skeleton-surface: #ffffff;
   --skeleton-shine: #ffffff;
+  --card-sheen: rgba(255, 255, 255, 0.5);
   --green: #22c55e;
   --yellow: #facc15;
   --orange: #fb923c;
@@ -104,6 +105,7 @@
     --skeleton-bg: #111418;
     --skeleton-surface: #191d23;
     --skeleton-shine: #1a1f26;
+    --card-sheen: rgba(255, 255, 255, 0.1);
     --gold: #f59e0b;
     --gold-hover: #fbbf24;
 
@@ -525,8 +527,13 @@ h1 {
   --empty-card-radius: 5.6274cqw;
   position: relative;
   container-type: inline-size;
+  /* Default card ratio (1177×814) so the stage reserves its space before JS runs;
+     sizeStageForImage() refines it per card. */
+  --card-aspect: 1.4459;
   margin: 0 auto 24px;
-  width: min(90vw, 900px);
+  width: min(90vw, 900px, max(100vh - 300px, 200px) * var(--card-aspect));
+  width: min(90vw, 900px, max(100svh - 300px, 200px) * var(--card-aspect));
+  aspect-ratio: var(--card-aspect);
   user-select: none;
   display: block;
 }
@@ -819,9 +826,49 @@ h1 {
   opacity: 1;
 }
 
+/* One-shot sheen when a card replaces the skeleton */
+.face.front::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--empty-card-radius, 0);
+  background: linear-gradient(
+      105deg,
+      transparent 40%,
+      var(--card-sheen) 50%,
+      transparent 60%
+    )
+    no-repeat;
+  background-size: 250% 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card-shell.just-loaded .face.front::after {
+  animation: cardSheen 1100ms var(--ease-page-enter) 120ms both;
+}
+
+@keyframes cardSheen {
+  0% {
+    opacity: 0;
+    background-position: 100% 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    background-position: 0 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .card3d {
     transition-duration: 1ms;
+  }
+
+  .card-shell.just-loaded .face.front::after {
+    animation: none;
   }
 }
 

@@ -12,6 +12,7 @@ import {
   showCurrent,
   showSkeleton,
   hideSkeleton,
+  armLoadSheen,
   updateNavButtons,
   updateFavouritesCount,
 } from '../ui/updates.js';
@@ -148,6 +149,7 @@ export async function loadChapter(chapterNo) {
 
 async function loadChapterContent(chapterNo) {
   showSkeleton();
+  armLoadSheen();
   state.chapter = chapterNo;
   state.basePath = chapterPath(chapterNo);
   state.deck = [];
