@@ -1,50 +1,50 @@
 {
   "chapter": "ch15_cartes",
-  "asset_version": "20260827T132817Z",
+  "asset_version": "20261019T113540Z",
   "image_format": "webp",
   "total_cards": 16,
   "cards_by_border": {
     "green": [
       1,
-      2,
       3,
       4,
       5,
       6,
-      7,
       8,
+      9,
+      10,
       12,
       13,
       14
     ],
     "orange": [
-      9,
-      10,
-      11,
+      2,
+      7,
       16
     ],
     "red": [
+      11,
       15
     ]
   },
   "cards_by_timer": {
     "green": [
-      1,
       2,
       3,
       4,
       5,
       6,
-      7,
-      8,
-      10,
+      9,
+      12,
       13,
       14
     ],
     "yellow": [
-      9,
+      1,
+      7,
+      8,
+      10,
       11,
-      12,
       15,
       16
     ]
@@ -52,7 +52,7 @@
   "per_card": {
     "1": {
       "border": "green",
-      "timer": "green",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 813
@@ -63,7 +63,7 @@
       }
     },
     "2": {
-      "border": "green",
+      "border": "orange",
       "timer": "green",
       "front": {
         "width": 1177,
@@ -123,8 +123,8 @@
       }
     },
     "7": {
-      "border": "green",
-      "timer": "green",
+      "border": "orange",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 813
@@ -136,7 +136,7 @@
     },
     "8": {
       "border": "green",
-      "timer": "green",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 813
@@ -147,8 +147,8 @@
       }
     },
     "9": {
-      "border": "orange",
-      "timer": "yellow",
+      "border": "green",
+      "timer": "green",
       "front": {
         "width": 1177,
         "height": 813
@@ -159,8 +159,8 @@
       }
     },
     "10": {
-      "border": "orange",
-      "timer": "green",
+      "border": "green",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 814
@@ -171,20 +171,20 @@
       }
     },
     "11": {
-      "border": "orange",
+      "border": "red",
       "timer": "yellow",
       "front": {
         "width": 1177,
-        "height": 813
+        "height": 814
       },
       "back": {
         "width": 1177,
-        "height": 813
+        "height": 814
       }
     },
     "12": {
       "border": "green",
-      "timer": "yellow",
+      "timer": "green",
       "front": {
         "width": 1177,
         "height": 813

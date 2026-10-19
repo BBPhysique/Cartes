@@ -1,58 +1,58 @@
 {
   "chapter": "ch16_cartes",
-  "asset_version": "20260827T132820Z",
+  "asset_version": "20261019T113545Z",
   "image_format": "webp",
   "total_cards": 16,
   "cards_by_border": {
     "green": [
       1,
-      3,
+      2,
       4,
       5,
       6,
-      8,
+      7,
       9,
-      10,
-      12,
+      11,
       13,
-      14
+      14,
+      15
     ],
     "orange": [
-      2,
-      7,
+      3,
+      8,
+      12,
       16
     ],
     "red": [
-      11,
-      15
+      10
     ]
   },
   "cards_by_timer": {
     "green": [
+      1,
       2,
-      3,
-      4,
       5,
       6,
-      9,
-      12,
-      13,
-      14
-    ],
-    "yellow": [
-      1,
       7,
       8,
+      9,
       10,
       11,
+      12,
       15,
       16
+    ],
+    "yellow": [
+      3,
+      4,
+      13,
+      14
     ]
   },
   "per_card": {
     "1": {
       "border": "green",
-      "timer": "yellow",
+      "timer": "green",
       "front": {
         "width": 1177,
         "height": 813
@@ -63,7 +63,7 @@
       }
     },
     "2": {
-      "border": "orange",
+      "border": "green",
       "timer": "green",
       "front": {
         "width": 1177,
@@ -75,8 +75,8 @@
       }
     },
     "3": {
-      "border": "green",
-      "timer": "green",
+      "border": "orange",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 813
@@ -88,7 +88,7 @@
     },
     "4": {
       "border": "green",
-      "timer": "green",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 813
@@ -123,8 +123,8 @@
       }
     },
     "7": {
-      "border": "orange",
-      "timer": "yellow",
+      "border": "green",
+      "timer": "green",
       "front": {
         "width": 1177,
         "height": 813
@@ -135,8 +135,8 @@
       }
     },
     "8": {
-      "border": "green",
-      "timer": "yellow",
+      "border": "orange",
+      "timer": "green",
       "front": {
         "width": 1177,
         "height": 813
@@ -159,8 +159,8 @@
       }
     },
     "10": {
-      "border": "green",
-      "timer": "yellow",
+      "border": "red",
+      "timer": "green",
       "front": {
         "width": 1177,
         "height": 814
@@ -171,19 +171,19 @@
       }
     },
     "11": {
-      "border": "red",
-      "timer": "yellow",
+      "border": "green",
+      "timer": "green",
       "front": {
         "width": 1177,
-        "height": 814
+        "height": 813
       },
       "back": {
         "width": 1177,
-        "height": 814
+        "height": 813
       }
     },
     "12": {
-      "border": "green",
+      "border": "orange",
       "timer": "green",
       "front": {
         "width": 1177,
@@ -196,7 +196,7 @@
     },
     "13": {
       "border": "green",
-      "timer": "green",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 813
@@ -208,7 +208,7 @@
     },
     "14": {
       "border": "green",
-      "timer": "green",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 814
@@ -219,20 +219,20 @@
       }
     },
     "15": {
-      "border": "red",
-      "timer": "yellow",
+      "border": "green",
+      "timer": "green",
       "front": {
         "width": 1177,
-        "height": 814
+        "height": 813
       },
       "back": {
         "width": 1177,
-        "height": 814
+        "height": 813
       }
     },
     "16": {
       "border": "orange",
-      "timer": "yellow",
+      "timer": "green",
       "front": {
         "width": 1177,
         "height": 813
