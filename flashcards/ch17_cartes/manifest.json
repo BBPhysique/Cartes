@@ -1,52 +1,54 @@
 {
   "chapter": "ch17_cartes",
-  "asset_version": "20260827T132824Z",
+  "asset_version": "20261019T113550Z",
   "image_format": "webp",
   "total_cards": 16,
   "cards_by_border": {
     "green": [
       1,
       2,
+      3,
       4,
       5,
-      6,
       7,
+      8,
       9,
       11,
-      13,
+      12,
       14,
       15
     ],
     "orange": [
-      3,
-      8,
-      12,
-      16
+      6,
+      10,
+      13
     ],
-    "red": [
-      10
+    "purple": [
+      16
     ]
   },
   "cards_by_timer": {
     "green": [
       1,
       2,
+      3,
       5,
-      6,
       7,
       8,
       9,
-      10,
       11,
       12,
-      15,
-      16
+      15
     ],
     "yellow": [
-      3,
       4,
+      6,
+      10,
       13,
       14
+    ],
+    "none": [
+      16
     ]
   },
   "per_card": {
@@ -75,8 +77,8 @@
       }
     },
     "3": {
-      "border": "orange",
-      "timer": "yellow",
+      "border": "green",
+      "timer": "green",
       "front": {
         "width": 1177,
         "height": 813
@@ -111,8 +113,8 @@
       }
     },
     "6": {
-      "border": "green",
-      "timer": "green",
+      "border": "orange",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 814
@@ -135,7 +137,7 @@
       }
     },
     "8": {
-      "border": "orange",
+      "border": "green",
       "timer": "green",
       "front": {
         "width": 1177,
@@ -159,8 +161,8 @@
       }
     },
     "10": {
-      "border": "red",
-      "timer": "green",
+      "border": "orange",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 814
@@ -183,7 +185,7 @@
       }
     },
     "12": {
-      "border": "orange",
+      "border": "green",
       "timer": "green",
       "front": {
         "width": 1177,
@@ -195,7 +197,7 @@
       }
     },
     "13": {
-      "border": "green",
+      "border": "orange",
       "timer": "yellow",
       "front": {
         "width": 1177,
@@ -231,15 +233,15 @@
       }
     },
     "16": {
-      "border": "orange",
-      "timer": "green",
+      "border": "purple",
+      "timer": "none",
       "front": {
         "width": 1177,
-        "height": 813
+        "height": 815
       },
       "back": {
         "width": 1177,
-        "height": 813
+        "height": 815
       }
     }
   }
