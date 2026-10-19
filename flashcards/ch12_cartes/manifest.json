@@ -1,59 +1,57 @@
 {
   "chapter": "ch12_cartes",
-  "asset_version": "20260827T132804Z",
+  "asset_version": "20261019T113148Z",
   "image_format": "webp",
   "total_cards": 16,
   "cards_by_border": {
     "green": [
+      1,
       2,
       3,
-      5,
-      6,
+      4,
+      7,
       8,
       9,
       10,
+      11,
       12,
-      13,
-      14
+      13
     ],
     "orange": [
-      1,
-      4,
-      7,
-      11
+      5,
+      14,
+      15
     ],
-    "purple": [
-      15,
+    "red": [
+      6,
       16
     ]
   },
   "cards_by_timer": {
     "green": [
-      2,
-      3,
-      5,
+      4,
       7,
       8,
-      11,
-      12,
+      9,
+      10,
       13,
       14
     ],
     "yellow": [
       1,
-      4,
+      2,
+      3,
+      5,
       6,
-      9,
-      10
-    ],
-    "none": [
+      11,
+      12,
       15,
       16
     ]
   },
   "per_card": {
     "1": {
-      "border": "orange",
+      "border": "green",
       "timer": "yellow",
       "front": {
         "width": 1177,
@@ -66,7 +64,7 @@
     },
     "2": {
       "border": "green",
-      "timer": "green",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 814
@@ -78,7 +76,7 @@
     },
     "3": {
       "border": "green",
-      "timer": "green",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 813
@@ -89,6 +87,18 @@
       }
     },
     "4": {
+      "border": "green",
+      "timer": "green",
+      "front": {
+        "width": 1177,
+        "height": 813
+      },
+      "back": {
+        "width": 1177,
+        "height": 813
+      }
+    },
+    "5": {
       "border": "orange",
       "timer": "yellow",
       "front": {
@@ -100,20 +110,8 @@
         "height": 813
       }
     },
-    "5": {
-      "border": "green",
-      "timer": "green",
-      "front": {
-        "width": 1177,
-        "height": 813
-      },
-      "back": {
-        "width": 1177,
-        "height": 813
-      }
-    },
     "6": {
-      "border": "green",
+      "border": "red",
       "timer": "yellow",
       "front": {
         "width": 1177,
@@ -125,7 +123,7 @@
       }
     },
     "7": {
-      "border": "orange",
+      "border": "green",
       "timer": "green",
       "front": {
         "width": 1177,
@@ -150,7 +148,7 @@
     },
     "9": {
       "border": "green",
-      "timer": "yellow",
+      "timer": "green",
       "front": {
         "width": 1177,
         "height": 813
@@ -162,7 +160,7 @@
     },
     "10": {
       "border": "green",
-      "timer": "yellow",
+      "timer": "green",
       "front": {
         "width": 1177,
         "height": 814
@@ -173,8 +171,8 @@
       }
     },
     "11": {
-      "border": "orange",
-      "timer": "green",
+      "border": "green",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 813
@@ -186,7 +184,7 @@
     },
     "12": {
       "border": "green",
-      "timer": "green",
+      "timer": "yellow",
       "front": {
         "width": 1177,
         "height": 813
@@ -209,7 +207,7 @@
       }
     },
     "14": {
-      "border": "green",
+      "border": "orange",
       "timer": "green",
       "front": {
         "width": 1177,
@@ -221,27 +219,27 @@
       }
     },
     "15": {
-      "border": "purple",
-      "timer": "none",
+      "border": "orange",
+      "timer": "yellow",
       "front": {
         "width": 1177,
-        "height": 814
+        "height": 813
       },
       "back": {
         "width": 1177,
-        "height": 814
+        "height": 813
       }
     },
     "16": {
-      "border": "purple",
-      "timer": "none",
+      "border": "red",
+      "timer": "yellow",
       "front": {
         "width": 1177,
-        "height": 815
+        "height": 814
       },
       "back": {
         "width": 1177,
-        "height": 815
+        "height": 814
       }
     }
   }
